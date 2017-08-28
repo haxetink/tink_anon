@@ -1,0 +1,19 @@
+{
+  "name": "tink_anon",
+  "license": "MIT",
+  "tags": [
+    "tink",
+    "anonymous",
+    "cross",
+    "merge",
+    "splat"
+  ],
+  "classPath": "src",
+  "contributors": [
+    "back2dos"
+  ],
+  "releasenote": "initial release",
+  "version": "0.0.0",
+  "url": "https://github.com/haxetink/tink_anon/",
+  "dependencies": {}
+}

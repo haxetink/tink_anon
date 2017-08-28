@@ -1,21 +1,21 @@
 {
-  "name": "tink_anon",
-  "license": "MIT",
-  "tags": [
-    "tink",
-    "anonymous",
-    "cross",
-    "merge",
-    "splat"
-  ],
-  "classPath": "src",
-  "contributors": [
-    "back2dos"
-  ],
-  "releasenote": "initial release",
-  "version": "0.0.0",
-  "url": "https://github.com/haxetink/tink_anon/",
-  "dependencies": {
-    "tink_macro": ""
-  }
+	"name": "tink_anon",
+	"license": "MIT",
+	"tags": [
+		"tink",
+		"anonymous",
+		"cross",
+		"merge",
+		"splat"
+	],
+	"classPath": "src",
+	"contributors": [
+		"back2dos"
+	],
+	"releasenote": "Initial release.",
+	"version": "0.1.0",
+	"url": "https://github.com/haxetink/tink_anon/",
+	"dependencies": {
+		"tink_macro": ""
+	}
 }

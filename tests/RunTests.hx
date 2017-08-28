@@ -4,7 +4,7 @@ import haxe.unit.*;
 import tink.Anon.*;
 
 class RunTests extends TestCase {
-
+  
   function testSplat() {
     var o = {
       foobar: 1,
@@ -65,9 +65,14 @@ class RunTests extends TestCase {
     assertFields('bar,foo', o3);
     //o3 = merge({ bar: Int, foop: 12 }); uncomment to check if compiler gives right suggestion
   }
+  
+  function testStructInit() {
+    var o = { beep: 5, bop: 4, foo: 2 };
+    var o2:Example = tink.Anon.merge(o, foo = 3, bar = 5);
+    assertEquals(3, o2.foo);
+  }
 
   static function main() {
-    
     var r = new TestRunner();
 
     r.add(new RunTests());
@@ -78,4 +83,11 @@ class RunTests extends TestCase {
     );
   }
   
+}
+
+@:structInit class Example {
+  public var foo:Int; 
+  public var bar:Int; 
+  public var beep:Int; 
+  public var bop:Int;
 }

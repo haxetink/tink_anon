@@ -12,7 +12,7 @@ using tink.CoreApi;
 
 class Anon {
   #if macro
-  static public function mergeExpressions(exprs:Array<Expr>, ?requiredType, ?pos) {
+  static public function mergeExpressions(exprs:Array<Expr>, ?requiredType, ?pos, ?as) {
     var complex = [],
         individual = [];
 
@@ -33,14 +33,15 @@ class Anon {
           complex.push(e);
       }
     
-    return mergeParts(individual, complex, requiredType, pos);
+    return mergeParts(individual, complex, requiredType, pos, as);
   }
 
   static public function mergeParts(
     individual:Array<{ name:String, pos:Position, getValue:Option<Type>->Expr }>, 
     complex:Array<Expr>,
     ?requiredType:String->Outcome<Option<Type>, Error>, 
-    ?pos:Position
+    ?pos:Position, 
+    ?as:ComplexType
   ) {
     var fields = [],
         args = [],
@@ -50,7 +51,7 @@ class Anon {
     if (requiredType == null)
       requiredType = function (_) return Success(None);
 
-    var ret = EObjectDecl(fields).at(pos).func(args).asExpr(pos);
+    var ret = EObjectDecl(fields).at(pos).func(args, as).asExpr(pos);
     
     function add(name, getValue:Option<Type>->Expr, ?panicAt:Position) {
       function panic(message)
@@ -127,15 +128,12 @@ class Anon {
   macro static public function merge(exprs:Array<Expr>) {
     var type = Context.getExpectedType();
     var ct = type.toComplex();
-    var ret = 
+    return
       mergeExpressions(
         exprs, 
-        requiredFields(type)
+        requiredFields(type),
+        ct
       );
-    
-    return 
-      if (ct == null) ret;
-      else macro @:pos(ret.pos) ($ret : $ct);
   }
 
   macro static public function splat(e:Expr, ?prefix:Expr, ?filter:Expr) {

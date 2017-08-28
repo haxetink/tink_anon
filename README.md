@@ -18,6 +18,8 @@ var o2:{ foo:Int, bar: Int, beep: Int, bop: Int } = tink.Anon.merge(o, foo = 3, 
 //{ foo : Int, bop : Int, beep : Int, bar : Int } has no field baz (Suggestion: bar)
 ```
 
+Note that merging can also be used to build `@:structInit` objects.
+
 ## Splat
 
 The `tink.Anon.splat` macro takes the fields of its first argument and declares them as variables. An optional second argument can be an **identifier** (which will be used as a prefix) and an optional third argument can be a filter which must either be a **string literal** with `*` as wildcards (and is treated case insensitively) or a **regex literal**. It may be preceeded with a `!` for negation.

@@ -1,6 +1,6 @@
 # Tinkerbell Anonymous Object Helpers
 
-There's really just two functions: merging and splatting.
+There's really just two functions for merging and splatting objects. It is advised to use them through `import tink.Anon.*`.
 
 ## Merge
 
@@ -10,11 +10,17 @@ The `tink.Anon.merge` macro takes a variable number of expressions and merges th
 - `ident = expr` which is a shorthand for `{ ident: expr }` which is treated as any object literal
 - any other expressions are stored in a temporary variable, and have their fields used in order of appearance. Fields for which there is already a value will be skipped, e.g. `tink.Anon.merge([], 's').length == 0` while `tink.Anon.merge('s', []).length == 1`.
 
-If the macro can determine the expected type (per `Context.getExpectedType`), only fields that are required will be generated. Superfluous fields on anonymous objects will yield compile time errors.
+If the macro can determine the expected type (per `Context.getExpectedType`), only fields that are required will be generated. Superfluous fields in object literals will yield compile time errors:
+
+```haxe
+var o = { beep: 5, bop: 4 };
+var o2:{ foo:Int, bar: Int, beep: Int, bop: Int } = tink.Anon.merge(o, foo = 3, baz = 5);
+//{ foo : Int, bop : Int, beep : Int, bar : Int } has no field baz (Suggestion: bar)
+```
 
 ## Splat
 
-The splat macro takes the fields of its first argument and declares them as variables. An optional second argument can be an **identifier** (which will be used as a prefix) and an optional third argument can be a filter which must either be a **string literal** with `*` as wildcards (and is treated case insensitively) or a **regex literal**. It may be preceeded with a `!` for negation.
+The `tink.Anon.splat` macro takes the fields of its first argument and declares them as variables. An optional second argument can be an **identifier** (which will be used as a prefix) and an optional third argument can be a filter which must either be a **string literal** with `*` as wildcards (and is treated case insensitively) or a **regex literal**. It may be preceeded with a `!` for negation.
 
 Example:
 

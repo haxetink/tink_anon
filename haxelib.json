@@ -12,8 +12,8 @@
 	"contributors": [
 		"back2dos"
 	],
-	"releasenote": "Add support for structInit.",
-	"version": "0.1.1",
+	"releasenote": "Refactored macro API.",
+	"version": "0.1.2",
 	"url": "https://github.com/haxetink/tink_anon/",
 	"dependencies": {
 		"tink_macro": ""

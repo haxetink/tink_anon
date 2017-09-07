@@ -26,7 +26,7 @@ The `tink.Anon.splat` macro takes the fields of its first argument and declares 
 
 Example:
 
-```
+```haxe
 var o = {
   foobar: 1,
   foofoo: 2,

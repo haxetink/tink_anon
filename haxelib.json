@@ -12,8 +12,8 @@
 	"contributors": [
 		"back2dos"
 	],
-	"releasenote": "Refactored macro API.",
-	"version": "0.1.2",
+	"releasenote": "A few more tweaks to the macro API.",
+	"version": "0.1.3",
 	"url": "https://github.com/haxetink/tink_anon/",
 	"dependencies": {
 		"tink_macro": ""

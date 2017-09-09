@@ -1,13 +1,20 @@
 package tink.anon;
 
-#if macro
+#if !macro
+  #error
+#end
 import haxe.macro.Type;
 import haxe.macro.Expr;
 
 using StringTools;
 using tink.MacroApi;
 using tink.CoreApi;
-#end
+
+typedef Part = { 
+  var name(default, null):String;
+  var pos(default, null):Position;
+  var getValue(default, null):Option<Type>->Expr;
+}
 
 class Macro {
   static public function mergeExpressions(exprs:Array<Expr>, ?requiredType, ?pos, ?as) {
@@ -35,7 +42,7 @@ class Macro {
   }
 
   static public function mergeParts(
-    individual:Array<{ name:String, pos:Position, getValue:Option<Type>->Expr }>, 
+    individual:Array<Part>, 
     complex:Array<Expr>,
     ?requiredType:String->Outcome<Option<Type>, Error>, 
     ?pos:Position, 

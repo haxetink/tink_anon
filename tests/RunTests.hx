@@ -1,6 +1,7 @@
 package ;
 
 import haxe.unit.*;
+import tink.anon.*;
 import tink.Anon.*;
 
 class RunTests extends TestCase {
@@ -70,6 +71,10 @@ class RunTests extends TestCase {
     var o = { beep: 5, bop: 4, foo: 2 };
     var o2:Example = tink.Anon.merge(o, foo = 3, bar = 5);
     assertEquals(3, o2.foo);
+  }
+  
+  function testReadOnly() {
+    var o:ReadOnly<{i:Int}> = {i: 1};
   }
 
   static function main() {

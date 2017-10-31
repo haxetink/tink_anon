@@ -3,8 +3,9 @@ package tink.anon;
 #if !macro
   #error
 #end
-import haxe.macro.Type;
 import haxe.macro.Expr;
+import haxe.macro.Type;
+import tink.macro.BuildCache;
 
 using StringTools;
 using tink.MacroApi;
@@ -17,6 +18,33 @@ typedef Part = {
 }
 
 class Macro {
+  static public function buildReadOnly() {
+    return BuildCache.getType('tink.anon.ReadOnly', function(ctx) {
+      var name = ctx.name;
+      var ct = ctx.type.toComplex();
+      var def = macro class $name {};
+      function add(c:TypeDefinition) def.fields = def.fields.concat(c.fields);
+      
+      switch ctx.type.reduce() {
+        case TAnonymous(_.get() => {fields: fields}):
+          for(field in fields) {
+            var fname = field.name;
+            var ct = field.type.toComplex();
+            if(field.type.reduce().match(TAnonymous(_))) ct = macro:tink.anon.ReadOnly<$ct>;
+            add(macro class {
+              var $fname(default, never):$ct;
+            });
+          }
+        default:
+          ctx.pos.error('Only supports anonymous structures');
+      }
+      
+      def.pack = ['tink', 'anon'];
+      def.kind = TDStructure;
+      return def;
+    });
+  }
+  
   static public function mergeExpressions(exprs:Array<Expr>, ?requiredType, ?pos, ?as) {
     var complex = [],
         individual = [];

@@ -1,7 +1,9 @@
 package ;
 
 import haxe.unit.*;
+import tink.anon.*;
 import tink.Anon.*;
+import haxe.ds.Option;
 
 class RunTests extends TestCase {
   
@@ -64,6 +66,20 @@ class RunTests extends TestCase {
     var o3:{ foo: Int, bar:String } = merge(o);
     assertFields('bar,foo', o3);
     //o3 = merge({ bar: Int, foop: 12 }); uncomment to check if compiler gives right suggestion
+  }
+  
+  function testOptional() {
+    var o:Optional<{i:Int, o:{s:String}}>;
+    o = {
+      i: Some(1),
+      o: Some({
+        s:Some('a'),
+      })
+    }
+    o = {
+      i: None,
+      o: None,
+    }
   }
   
   function testStructInit() {

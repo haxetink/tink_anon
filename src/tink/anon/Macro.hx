@@ -11,7 +11,7 @@ using StringTools;
 using tink.MacroApi;
 using tink.CoreApi;
 
-typedef Part = { 
+typedef Part = {
   var name(default, null):String;
   var pos(default, null):Position;
   var getValue(default, null):Option<Type>->Expr;
@@ -24,7 +24,7 @@ class Macro {
       var ct = ctx.type.toComplex();
       var def = macro class $name {};
       function add(c:TypeDefinition) def.fields = def.fields.concat(c.fields);
-      
+
       switch ctx.type.reduce() {
         case TAnonymous(_.get() => {fields: fields}):
           for(field in fields) {
@@ -38,42 +38,46 @@ class Macro {
         default:
           ctx.pos.error('Only supports anonymous structures');
       }
-      
+
       def.pack = ['tink', 'anon'];
       def.kind = TDStructure;
       return def;
     });
   }
-  
-  static public function mergeExpressions(exprs:Array<Expr>, ?requiredType, ?pos, ?as) {
+
+  static public function mergeExpressions(exprs:Array<Expr>, ?requiredType, ?pos, ?as, replace=false) {
     var complex = [],
         individual = [];
 
     function add(name, expr, pos)
       individual.push({ name: name, getValue: function (_) return expr, pos: pos });
 
-    for (e in exprs) 
+    var seen = new Map<String,Int>();
+    for (e in exprs)
       switch e {
         case macro $name = $v:
           add(name.getIdent().sure(), v, name.pos);
 
         case { expr: EObjectDecl(fields) }:
 
-          for (f in fields)
+          for (f in fields){
+            if (replace && seen.exists(f.field)) continue;
+            seen.set(f.field, 1);
             add(f.field, f.expr, f.expr.pos);
+          }
 
-        default: 
+        default:
           complex.push(e);
       }
-    
+
     return mergeParts(individual, complex, requiredType, pos, as);
   }
 
   static public function mergeParts(
-    individual:Array<Part>, 
+    individual:Array<Part>,
     complex:Array<Expr>,
-    ?requiredType:String->Outcome<Option<Type>, Error>, 
-    ?pos:Position, 
+    ?requiredType:String->Outcome<Option<Type>, Error>,
+    ?pos:Position,
     ?as:ComplexType
   ) {
     var fields = [],
@@ -85,23 +89,23 @@ class Macro {
       requiredType = function (_) return Success(None);
 
     var ret = EObjectDecl(fields).at(pos).func(args, as).asExpr(pos);
-    
+
     function add(name, getValue:Option<Type>->Expr, ?panicAt:Position) {
       function panic(message)
         if (panicAt != null) panicAt.error(message);
 
-      if (exists[name]) 
+      if (exists[name])
         panic('Duplicate field $name');
-      else 
+      else
         switch requiredType(name) {
-          case Failure(e): 
+          case Failure(e):
             panic(e.message);
           case Success(t):
             exists[name] = true;
             fields.push({
               field: name,
               expr: getValue(t)
-            });            
+            });
         }
     }
 
@@ -109,10 +113,10 @@ class Macro {
       add(f.name, f.getValue, f.pos);
 
     for (e in complex) {
-      
+
       var t = e.typeof().sure(),
           owner = '__o${args.length}';
-      
+
       callArgs.push(e);
 
       args.push({
@@ -120,46 +124,46 @@ class Macro {
         type: t.toComplex(),
       });
 
-      for (f in t.getFields().sure()) 
+      for (f in t.getFields().sure())
         if (isPublicField(f)) {
-          var name = f.name;    
+          var name = f.name;
           add(name, function (_) return macro $i{owner}.$name);
         }
     }
 
-    return ret.call(callArgs, pos);    
+    return ret.call(callArgs, pos);
   }
 
-  static public function isPublicField(c:ClassField) 
+  static public function isPublicField(c:ClassField)
     return c.isPublic && c.kind.match(FVar(_, _));
 
   static public function requiredFields(type:Type)
     return switch type {
       case null: function (_) return Success(None);
-      default: 
+      default:
         var ct = type.toComplex();
         function (name:String)
           return (macro (null : $ct).$name).typeof().map(Some);
     }
 
-  static function parseFilter(e:Expr) 
+  static function parseFilter(e:Expr)
     return switch e {
-      case null | macro null: 
+      case null | macro null:
         function (_) return true;
-      case macro !$e: 
+      case macro !$e:
         var f = parseFilter(e);
         function (x) return !f(x);
-      case { expr: EConst(CString(s)) }: 
+      case { expr: EConst(CString(s)) }:
         s = s.replace('*', '.*');
         new EReg('^$s$', 'i').match;
-      case { expr: EConst(CRegexp(pat, flags)) }: 
+      case { expr: EConst(CRegexp(pat, flags)) }:
         new EReg(pat, flags).match;
-      default: 
+      default:
         e.reject('Not a valid filter. Must be a string constant or a regex literal');
-    }    
+    }
 
 static public function makeSplat(e:Expr, ?prefix:Expr, ?filter:Expr) {
-    
+
     var include = null;
     var prefix = switch prefix.getIdent() {
       case Success('null') | Failure(_):
@@ -171,7 +175,7 @@ static public function makeSplat(e:Expr, ?prefix:Expr, ?filter:Expr) {
     }
 
     function getName(name:String)
-      return 
+      return
         if (prefix == null) name;
         else prefix + name.charAt(0).toUpperCase() + name.substr(1);
 
@@ -197,6 +201,6 @@ static public function makeSplat(e:Expr, ?prefix:Expr, ?filter:Expr) {
       }
 
     return ret;
-  }    
-    
+  }
+
 }

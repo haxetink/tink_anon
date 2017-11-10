@@ -45,13 +45,14 @@ class Macro {
     });
   }
   
-  static public function mergeExpressions(exprs:Array<Expr>, ?requiredType, ?pos, ?as) {
+  static public function mergeExpressions(exprs:Array<Expr>, ?requiredType, ?pos, ?as, accept_first=false) {
     var complex = [],
         individual = [];
 
     function add(name, expr, pos)
       individual.push({ name: name, getValue: function (_) return expr, pos: pos });
 
+    var field_names = new Map<String,Int>();
     for (e in exprs) 
       switch e {
         case macro $name = $v:
@@ -59,8 +60,13 @@ class Macro {
 
         case { expr: EObjectDecl(fields) }:
 
-          for (f in fields)
+          for (f in fields){
+            if (accept_first){
+              if (field_names.exists(f.field)) continue;
+              field_names.set(f.field, 1);
+            }
             add(f.field, f.expr, f.expr.pos);
+          }
 
         default: 
           complex.push(e);

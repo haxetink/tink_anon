@@ -8,6 +8,7 @@ import haxe.macro.Type;
 import tink.macro.BuildCache;
 
 using StringTools;
+using haxe.macro.Tools;
 using tink.MacroApi;
 using tink.CoreApi;
 
@@ -120,18 +121,28 @@ class Macro {
         type: t.toComplex(),
       });
 
+      var isExtern = switch t {
+        case TInst(_.get().isExtern => v, _): v;
+        default: false;
+      }
+
       for (f in t.getFields().sure()) 
-        if (isPublicField(f)) {
+        if (isPublicField(f, isExtern)) {
           var name = f.name;    
-          add(name, function (_) return macro $i{owner}.$name);
+          add(name, function (_) return macro @:pos(f.pos) $i{owner}.$name);
         }
     }
 
     return ret.call(callArgs, pos);    
   }
 
-  static public function isPublicField(c:ClassField) 
-    return c.isPublic && c.kind.match(FVar(_, _));
+  static public function isPublicField(c:ClassField, ?isExtern:Bool) 
+    return switch c.kind {
+      case FMethod(_) if (isExtern): false;
+      case FMethod(MethMacro): false;
+      case FMethod(MethInline) if (c.meta.has(':extern')): false;
+      default: c.isPublic;
+    }
 
   static public function requiredFields(type:Type)
     return switch type {

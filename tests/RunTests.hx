@@ -65,6 +65,10 @@ class RunTests extends TestCase {
     var o3:{ foo: Int, bar:String } = merge(o);
     assertFields('bar,foo', o3);
     //o3 = merge({ bar: Int, foop: 12 }); uncomment to check if compiler gives right suggestion
+
+    var o = merge(x = 1, new FooBar());
+    assertEquals('bar', o.bar());
+    assertEquals('foo', o.foo());
   }
   
   function testStructInit() {
@@ -75,6 +79,8 @@ class RunTests extends TestCase {
   
   function testReadOnly() {
     var o:ReadOnly<{i:Int}> = {i: 1};
+    assertEquals(1, o.i);
+    Should.notCompile(o.i = 3, ~/Cannot access field or identifier i for writing/);
   }
 
   static function main() {
@@ -95,4 +101,10 @@ class RunTests extends TestCase {
   public var bar:Int; 
   public var beep:Int; 
   public var bop:Int;
+}
+
+class FooBar {
+  public function new() {}
+  public function foo() return 'foo';
+  public function bar() return 'bar';
 }

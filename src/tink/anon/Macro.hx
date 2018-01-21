@@ -19,6 +19,7 @@ typedef Part = {
 }
 
 class Macro {
+  
   static public function buildReadOnly() {
     return BuildCache.getType('tink.anon.ReadOnly', function(ctx) {
       var name = ctx.name;
@@ -67,13 +68,14 @@ class Macro {
           complex.push(e);
       }
     
-    return mergeParts(individual, complex, requiredType, pos, as);
+    return mergeParts(individual, complex, requiredType, function (name) return name, pos, as);
   }
 
   static public function mergeParts(
     individual:Array<Part>, 
     complex:Array<Expr>,
-    ?requiredType:String->Outcome<Option<Type>, Error>, 
+    ?requiredType:String->Outcome<Option<Type>, Error>,
+    ?resolve:String->String, 
     ?pos:Position, 
     ?as:ComplexType
   ) {
@@ -88,6 +90,10 @@ class Macro {
     var ret = EObjectDecl(fields).at(pos).func(args, as).asExpr(pos);
     
     function add(name, getValue:Option<Type>->Expr, ?panicAt:Position) {
+      
+      if (resolve != null)
+        name = resolve(name);
+
       function panic(message)
         if (panicAt != null) panicAt.error(message);
 

@@ -214,6 +214,35 @@ static public function makeSplat(e:Expr, ?prefix:Expr, ?filter:Expr) {
       }
 
     return ret;
-  }    
+  } 
+  
+  static public function makeReplace(expr:Expr, exprs:Array<Expr>) {
+    var type = haxe.macro.Context.typeof(expr);
+    var obj = new Map();
+    var pos = haxe.macro.Context.currentPos();
+    
+    switch type.reduce() {
+      case TAnonymous(_.get() => {fields: fields}):
+        for(field in fields) {
+          var fname = field.name;
+          obj.set(fname, macro o.$fname);
+        }
+      case _: pos.error('Only support anonymous structures');
+    }
+    
+    for(e in exprs) {
+      switch e.expr {
+        case EObjectDecl(fields): for(field in fields) obj.set(field.field, field.expr);
+        case EBinop(OpAssign, {expr: EConst(CIdent(name))}, expr): obj.set(name, expr);
+        case _: e.pos.error('Invalid syntax');
+      }
+    }
+    
+    return macro @:pos(pos) {
+      var o = $expr;
+      ${EObjectDecl([for(field in obj.keys()) {field: field, expr: obj[field]}]).at(pos)};
+    }
+  }   
+  
     
 }

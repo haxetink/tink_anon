@@ -22,5 +22,8 @@ class Anon {
 
   macro static public function splat(e:Expr, ?prefix:Expr, ?filter:Expr) 
     return makeSplat(e, prefix, filter);
+    
+  macro static public function replace(exprs:Array<Expr>) 
+    return makeReplace(exprs[0], exprs.slice(1));
 
 }

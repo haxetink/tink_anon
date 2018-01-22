@@ -71,6 +71,13 @@ class RunTests extends TestCase {
     assertEquals('foo', o.foo());
   }
   
+  function testReplace() {
+    var o = {a: 1, b: 2};
+    var o1 = replace(o, a = 2, {b: 1});
+    assertEquals(2, o1.a);
+    assertEquals(1, o1.b);
+  }
+  
   function testStructInit() {
     var o = { beep: 5, bop: 4, foo: 2 };
     var o2:Example = tink.Anon.merge(o, foo = 3, bar = 5);

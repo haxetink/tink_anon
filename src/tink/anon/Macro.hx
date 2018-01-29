@@ -18,6 +18,21 @@ typedef Part = {
   var getValue(default, null):Option<Type>->Expr;
 }
 
+abstract FieldInfo({ optional:Bool, type: Type }) {
+
+  public var optional(get, never):Bool;
+    inline function get_optional() return this.optional;
+
+  public var type(get, never):Type;
+    inline function get_type() return this.type;
+
+  public inline function new(o) this = o;
+  @:from static function ofType(type:Type)
+    return new FieldInfo({ optional: false, type: type });
+  @:from static function ofClassField(f:ClassField)
+    return new FieldInfo({ optional: f.meta.has(':optional'), type: f.type });
+}
+
 class Macro {
   
   static public function buildReadOnly() {
@@ -47,7 +62,7 @@ class Macro {
     });
   }
   
-  static public function mergeExpressions(exprs:Array<Expr>, ?requiredType, ?pos, ?as) {
+  static public function mergeExpressions(exprs:Array<Expr>, ?findField, ?pos, ?as) {
     var complex = [],
         individual = [];
 
@@ -68,13 +83,13 @@ class Macro {
           complex.push(e);
       }
     
-    return mergeParts(individual, complex, requiredType, function (name) return name, pos, as);
+    return mergeParts(individual, complex, findField, function (name) return name, pos, as);
   }
 
   static public function mergeParts(
     individual:Array<Part>, 
     complex:Array<Expr>,
-    ?requiredType:String->Outcome<Option<Type>, Error>,
+    ?findField:String->Outcome<Option<FieldInfo>, Error>,
     ?resolve:String->String, 
     ?pos:Position, 
     ?as:ComplexType
@@ -82,14 +97,26 @@ class Macro {
     var fields = [],
         args = [],
         callArgs = [],
-        exists = new Map();
+        exists = new Map(),
+        optional = [],
+        pos = pos.sanitize();
 
-    if (requiredType == null)
-      requiredType = function (_) return Success(None);
+    if (findField == null)
+      findField = function (_) return Success(None);
 
-    var ret = EObjectDecl(fields).at(pos).func(args, as).asExpr(pos);
+    var ret = EObjectDecl(fields).at(pos);
+
+    if (as != null) 
+      ret = macro @:pos(pos) ($ret:$as);
+
+    ret = macro @:pos(pos) {
+      var __ret = $ret;
+      $b{optional};
+      return __ret;
+    }
+    ret = ret.func(args, false).asExpr(pos);  
     
-    function add(name, getValue:Option<Type>->Expr, ?panicAt:Position) {
+    function add(name, getValue:Option<Type>->Expr, sourceOptional:Bool, ?panicAt:Position) {
       
       if (resolve != null)
         name = resolve(name);
@@ -100,20 +127,27 @@ class Macro {
       if (exists[name]) 
         panic('Duplicate field $name');
       else 
-        switch requiredType(name) {
+        switch findField(name) {
           case Failure(e): 
             panic(e.message);
           case Success(t):
             exists[name] = true;
-            fields.push({
-              field: name,
-              expr: getValue(t)
-            });            
+            var value = getValue(t.map(function (f) return f.type));
+            if (sourceOptional && t.match(Some({ optional: true })))
+              optional.push(macro @:pos(value.pos) switch ($value) {
+                case null: 
+                case v: untyped __ret.$name = v;//TODO: this is not exactly elegant
+              });
+            else
+              fields.push({
+                field: name,
+                expr: value,
+              });            
         }
     }
 
     for (f in individual)
-      add(f.name, f.getValue, f.pos);
+      add(f.name, f.getValue, false, f.pos);
 
     for (e in complex) {
       
@@ -135,7 +169,7 @@ class Macro {
       for (f in t.getFields().sure()) 
         if (isPublicField(f, isExtern)) {
           var name = f.name;    
-          add(name, function (_) return macro @:pos(f.pos) $i{owner}.$name);
+          add(name, function (_) return macro @:pos(f.pos) $i{owner}.$name, f.meta.has(':optional'));
         }
     }
 
@@ -155,8 +189,19 @@ class Macro {
       case null: function (_) return Success(None);
       default: 
         var ct = type.toComplex();
+        var isOptional = switch type.getFields(false) {
+          case Success(f): 
+            var optional = [for (f in f) f.name => f.meta.has(':optional')];
+            function (name) return optional[name];
+          default: function (_) return false;
+        }
         function (name:String)
-          return (macro (null : $ct).$name).typeof().map(Some);
+          return 
+            (macro (null : $ct).$name).typeof()
+              .map(function (t) return Some(new FieldInfo({
+                type: t,
+                optional: isOptional(name),
+              })));
     }
 
   static function parseFilter(e:Expr) 

@@ -49,6 +49,12 @@ class RunTests extends TestCase {
     );
   }
 
+  function testOptional() {
+    var o:{ ?optional: Int } = {};
+    o = merge(o);
+    assertFalse(Reflect.hasField(o, 'optional'));
+  }
+
   function testMerge() {
     assertEquals(1, merge([1], 'foo').length);
     assertEquals(3, merge('foo', [1]).length);

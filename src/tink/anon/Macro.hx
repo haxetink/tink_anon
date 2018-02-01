@@ -211,9 +211,16 @@ class Macro {
       case macro !$e: 
         var f = parseFilter(e);
         function (x) return !f(x);
+      case { expr: EArrayDecl(_.map(parseFilter) => filters) }:
+        return function (s) {
+          for (f in filters) if (f(s)) return true;
+          return false;
+        }
+      case macro $i{ident}:
+        return function (s) return s == ident;
       case { expr: EConst(CString(s)) }: 
         s = s.replace('*', '.*');
-        new EReg('^$s$', 'i').match;
+        new EReg('^($s)$', 'i').match;
       case { expr: EConst(CRegexp(pat, flags)) }: 
         new EReg(pat, flags).match;
       default: 

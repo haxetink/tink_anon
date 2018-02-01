@@ -22,7 +22,11 @@ Note that merging can also be used to build `@:structInit` objects.
 
 ## Splat
 
-The `tink.Anon.splat` macro takes the fields of its first argument and declares them as variables. An optional second argument can be an **identifier** (which will be used as a prefix) and an optional third argument can be a filter which must either be a **string literal** with `*` as wildcards (and is treated case insensitively) or a **regex literal**. It may be preceeded with a `!` for negation.
+The `tink.Anon.splat` macro takes the fields of its first argument and declares them as variables. An optional second argument can be an **identifier** (which will be used as a prefix) and an optional third argument can be a filter to restrict which fields will be selected. It must either of the following:
+- a **string literal** with `*` as wildcards (and is treated case insensitively). May contain `|` for matching different cases.
+- a **regex literal**. 
+- an **array literal** of filter expressions of which at least one must match.
+- a filter preceeded by a `!` for negation
 
 Example:
 

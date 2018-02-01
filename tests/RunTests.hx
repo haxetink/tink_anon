@@ -17,25 +17,40 @@ class RunTests extends TestCase {
         foofoo = "untouched",
         barbar = "untouched",
         barfoo = "untouched";
+    {
+      tink.Anon.splat(o, xyz);
+      assertEquals(xyzFoobar, 1);
 
-    tink.Anon.splat(o, xyz);
-    assertEquals(xyzFoobar, 1);
+      tink.Anon.splat(o, "foo*");
+      assertEquals(foobar, 1);
+      assertEquals(foofoo, 2);
+      assertEquals(barbar, "untouched");
 
-    tink.Anon.splat(o, "foo*");
-    assertEquals(foobar, 1);
-    assertEquals(foofoo, 2);
-    assertEquals(barbar, "untouched");
+      tink.Anon.splat(o, xyz, "*foo");
+      assertEquals(xyzFoofoo, 2);
+      assertEquals(xyzBarfoo, 4);
 
-    tink.Anon.splat(o, xyz, "*foo");
-    assertEquals(xyzFoofoo, 2);
-    assertEquals(xyzBarfoo, 4);
+      tink.Anon.splat(o, ~/rba/);
+      assertEquals(barbar, 3);
+      assertEquals(barfoo, "untouched");
 
-    tink.Anon.splat(o, ~/rba/);
-    assertEquals(barbar, 3);
-    assertEquals(barfoo, "untouched");
-
-    tink.Anon.splat(o, !~/rba/);//negated
-    assertEquals(barfoo, 4);
+      tink.Anon.splat(o, !~/rba/);//negated
+      assertEquals(barfoo, 4);
+    }
+    {
+      tink.Anon.splat(o, "foo*|*bar");
+      assertEquals(foobar, 1);
+      assertEquals(foofoo, 2);
+      assertEquals(barbar, 3);
+      assertEquals(barfoo, "untouched");
+    }
+    {
+      tink.Anon.splat(o, [foobar, barfoo]);
+      assertEquals(foobar, 1);
+      assertEquals(foofoo, "untouched");
+      assertEquals(barbar, "untouched");
+      assertEquals(barfoo, 4);
+    }
   }
   static function sorted<A>(a:Array<A>) {
     a.sort(Reflect.compare);

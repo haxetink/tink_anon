@@ -3,6 +3,7 @@ package ;
 import haxe.unit.*;
 import tink.anon.*;
 import tink.Anon.*;
+import haxe.ds.Option;
 
 class RunTests extends TestCase {
   
@@ -90,6 +91,20 @@ class RunTests extends TestCase {
     var o = merge(x = 1, new FooBar());
     assertEquals('bar', o.bar());
     assertEquals('foo', o.foo());
+  }
+  
+  function testOptional() {
+    var o:Optional<{i:Int, o:{s:String}}>;
+    o = {
+      i: Some(1),
+      o: Some({
+        s:Some('a'),
+      })
+    }
+    o = {
+      i: None,
+      o: None,
+    }
   }
   
   function testStructInit() {

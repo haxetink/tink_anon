@@ -267,5 +267,32 @@ static public function makeSplat(e:Expr, ?prefix:Expr, ?filter:Expr) {
 
     return ret;
   }    
+  
+  public static function buildOptional() {
+    return BuildCache.getType('tink.anon.Optional', function(ctx) {
+      var name = ctx.name;
+      var ct = ctx.type.toComplex();
+      var def = macro class $name {};
+      function add(c:TypeDefinition) def.fields = def.fields.concat(c.fields);
+      
+      switch ctx.type.reduce() {
+        case TAnonymous(_.get() => {fields: fields}):
+          for(field in fields) {
+            var fname = field.name;
+            var ct = field.type.toComplex();
+            if(field.type.reduce().match(TAnonymous(_))) ct = macro:tink.anon.Optional<$ct>;
+            add(macro class {
+              var $fname:haxe.ds.Option<$ct>;
+            });
+          }
+        default:
+          ctx.pos.error('Only supports anonymous structures');
+      }
+      
+      def.pack = ['tink', 'anon'];
+      def.kind = TDStructure;
+      return def;
+    });
+  }
     
 }

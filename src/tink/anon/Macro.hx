@@ -3,6 +3,7 @@ package tink.anon;
 #if !macro
   #error
 #end
+import haxe.macro.Context.*;
 import haxe.macro.Expr;
 import haxe.macro.Type;
 import tink.macro.BuildCache;
@@ -149,6 +150,17 @@ class Macro {
     for (f in individual)
       add(f.name, f.getValue, false, f.pos);
 
+    var isPrivateVisible = 
+      switch getLocalType() {
+        case TInst(_.get() => cl, _):
+          function (f:ClassField)
+            return switch cl.findField(f.name) {
+              case null: false;
+              case l: Std.string(l.pos) == Std.string(f.pos);
+            }
+        default: function (_) return false;
+      }
+
     for (e in complex) {
       
       var t = e.typeof().sure(),
@@ -167,7 +179,7 @@ class Macro {
       }
 
       for (f in t.getFields().sure()) 
-        if (isPublicField(f, isExtern)) {
+        if (isPrivateVisible(f) || isPublicField(f, isExtern)) {
           var name = f.name;    
           add(name, function (_) return macro @:pos(f.pos) $i{owner}.$name, f.meta.has(':optional'));
         }
@@ -227,7 +239,7 @@ class Macro {
         e.reject('Not a valid filter. Must be a string constant or a regex literal');
     }    
 
-static public function makeSplat(e:Expr, ?prefix:Expr, ?filter:Expr) {
+  static public function makeSplat(e:Expr, ?prefix:Expr, ?filter:Expr) {
     
     var include = null;
     var prefix = switch prefix.getIdent() {

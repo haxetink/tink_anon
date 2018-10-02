@@ -1,26 +1,29 @@
 sudo: required
 dist: trusty
 
-language: haxe
+stages:
+  - test
+  - deploy
+
+language: node_js
+node_js: 8
 
 os:
   - linux
+  # - osx
+
+env:
+  - HAXE_VERSION=3.4.7
+  - HAXE_VERSION=latest
   
-haxe:
-  - "3.4.0"
-  - development
-  
-matrix:
-  allow_failures:
-    - haxe: development
-    
 install:
-  - haxelib install travix
-  - haxelib run travix install
+  - npm i -g lix
+  - lix install haxe $HAXE_VERSION
+  - lix download
 
 script:
-  - haxelib run travix interp
-  - haxelib run travix neko
-  - haxelib run travix node
-  - haxelib run travix python
-  - haxelib run travix java
+  - lix run travix interp
+  - lix run travix neko
+  - lix run travix node
+  - lix run travix python
+  - lix run travix java

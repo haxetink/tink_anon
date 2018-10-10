@@ -17,6 +17,7 @@ typedef Part = {
   var name(default, null):String;
   var pos(default, null):Position;
   var getValue(default, null):Option<Type>->Expr;
+  @:optional var quotes(default, null):QuoteStatus;
 }
 
 abstract FieldInfo({ optional:Bool, type: Type }) {
@@ -65,7 +66,7 @@ class Macro {
   
   static public function mergeExpressions(exprs:Array<Expr>, ?findField, ?pos, ?as) {
     var complex = [],
-        individual = [];
+        individual:Array<Part> = [];
 
     function add(name, expr, pos)
       individual.push({ name: name, getValue: function (_) return expr, pos: pos });
@@ -95,7 +96,7 @@ class Macro {
     ?pos:Position, 
     ?as:ComplexType
   ) {
-    var fields = [],
+    var fields:Array<ObjectField> = [],
         args = [],
         callArgs = [],
         exists = new Map(),
@@ -117,7 +118,7 @@ class Macro {
     }
     ret = ret.func(args, false).asExpr(pos);  
     
-    function add(name, getValue:Option<Type>->Expr, sourceOptional:Bool, ?panicAt:Position) {
+    function add(name, getValue:Option<Type>->Expr, sourceOptional:Bool, ?panicAt:Position, ?quotes) {
       
       if (resolve != null)
         name = resolve(name);
@@ -143,12 +144,13 @@ class Macro {
               fields.push({
                 field: name,
                 expr: value,
+                quotes: quotes,
               });            
         }
     }
 
     for (f in individual)
-      add(f.name, f.getValue, false, f.pos);
+      add(f.name, f.getValue, false, f.pos, f.quotes);
 
     var isPrivateVisible = 
       switch getLocalType() {

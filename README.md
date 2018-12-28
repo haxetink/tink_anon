@@ -20,6 +20,15 @@ var o2:{ foo:Int, bar: Int, beep: Int, bop: Int } = tink.Anon.merge(o, foo = 3, 
 
 Note that merging can also be used to build `@:structInit` objects.
 
+You can for example use this macro to create a copy of an object with just a few fields modified:
+
+```haxe
+var player = { x: 10, y: 12, hp: 100 };
+player = tink.Anon.merge(player, hp = player.hp - 20);
+```
+
+This is because explicitly defined fields take precedence.
+
 ## Splat
 
 The `tink.Anon.splat` macro takes the fields of its first argument and declares them as variables. An optional second argument can be an **identifier** (which will be used as a prefix) and an optional third argument can be a filter to restrict which fields will be selected. It must either of the following:

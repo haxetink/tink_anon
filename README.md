@@ -27,7 +27,7 @@ var player = { x: 10, y: 12, hp: 100 };
 player = tink.Anon.merge(player, hp = player.hp - 20);
 ```
 
-This is because explicitly defined fields take precedence.
+The above will make a new player with 80 hit points. Note that the individually defined `hp` simply takes precedence over the one in `player`. But `tink.Anon.merge(player, hp = player.hp - 20, hp = player.hp - 30);` will be rejected because of duplicate `hp`, which is likely to be a mistake.
 
 ## Splat
 

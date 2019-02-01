@@ -12,8 +12,8 @@
 	"contributors": [
 		"back2dos"
 	],
-	"releasenote": "Expand filtering functionality.",
-	"version": "0.3.1",
+	"releasenote": "Add helper to grab existent fields in typed manner. Allow merging private fields if visible.",
+	"version": "0.3.2",
 	"url": "https://github.com/haxetink/tink_anon/",
 	"dependencies": {
 		"tink_macro": ""

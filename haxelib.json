@@ -12,8 +12,8 @@
 	"contributors": [
 		"back2dos"
 	],
-	"releasenote": "Add helper to grab existent fields in typed manner. Allow merging private fields if visible.",
-	"version": "0.3.2",
+	"releasenote": "Improve field quoting.",
+	"version": "0.3.3",
 	"url": "https://github.com/haxetink/tink_anon/",
 	"dependencies": {
 		"tink_macro": ""

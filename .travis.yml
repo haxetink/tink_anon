@@ -26,4 +26,5 @@ script:
   - lix run travix neko
   - lix run travix node
   - lix run travix python
-  - lix run travix java
+  - lix run travix cpp
+  # - lix run travix java

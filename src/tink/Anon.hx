@@ -29,8 +29,27 @@ class Anon {
   }
   
   macro static public function merge(exprs:Array<Expr>) {
-    var type = Context.getExpectedType();
+    
+    function getType(type:haxe.macro.Type):haxe.macro.Type {
+      var ret =  switch type {
+        case TType(_): getType(type.reduce(true));
+        case TAbstract(_.get() => {name: 'Null', pack: []}, [t1]): getType(t1);
+        case TLazy(f): getType(f());
+        case TAbstract(_.get() => {name: 'EitherType', pack: ['haxe', 'extern']}, [t1, t2]):
+          switch [getType(t1), getType(t2)] {
+            case [t = TAnonymous(_), TAnonymous(_)]: t; // TODO: choosing the first type for now, should try both though
+            case [t = TAnonymous(_), _]: t;
+            case [_, t = TAnonymous(_)]: t;
+            case [_, _]: type; // TODO: maybe throw something meaningful?
+          }
+        case _: type;
+      }
+      return ret;
+    }
+    
+    var type = getType(Context.getExpectedType());
     var ct = type.toComplex();
+    
     return
       mergeExpressions(
         exprs, 

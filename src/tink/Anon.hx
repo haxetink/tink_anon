@@ -38,11 +38,9 @@ class Anon {
         else switch type.reduce() {
           case t = TAbstract(_.get() => {from: types, params: params}, concrete):
             for(type in types)
-              if(type.field == null) { // only handles `from` directives
-                switch drill(haxe.macro.TypeTools.applyTypeParameters(type.t, params, concrete)) {
-                  case Some(t): return Some(t);
-                  case _: // try next
-                }
+              switch drill(haxe.macro.TypeTools.applyTypeParameters(type.t, params, concrete)) {
+                case Some(t): return Some(t);
+                case _: // try next
               }
             None;
           case t = TAnonymous(_): Some(t);

@@ -6,6 +6,7 @@ import tink.anon.Macro.*;
 import haxe.macro.Expr;
 
 using tink.MacroApi;
+using tink.CoreApi;
 #end
 
 class Anon {
@@ -30,32 +31,33 @@ class Anon {
   
   macro static public function merge(exprs:Array<Expr>) {
     
-    function getType(type:haxe.macro.Type):haxe.macro.Type {
-      var ret =  switch type {
-        case TType(_): getType(type.reduce(true));
-        case TAbstract(_.get() => {name: 'Null', pack: []}, [t1]): getType(t1);
-        case TLazy(f): getType(f());
-        case TAbstract(_.get() => {name: 'EitherType', pack: ['haxe', 'extern']}, [t1, t2]):
-          switch [getType(t1), getType(t2)] {
-            case [t = TAnonymous(_), TAnonymous(_)]: t; // TODO: choosing the first type for now, should try both though
-            case [t = TAnonymous(_), _]: t;
-            case [_, t = TAnonymous(_)]: t;
-            case [_, _]: type; // TODO: maybe throw something meaningful?
-          }
-        case _: type;
-      }
-      return ret;
+    function drill(type:haxe.macro.Type):Option<haxe.macro.Type> {
+      return
+        if(type == null)
+          None;
+        else switch type.reduce() {
+          case t = TAbstract(_.get() => {from: types, params: params}, concrete):
+            for(type in types)
+              if(type.field == null) { // only handles `from` directives
+                switch drill(haxe.macro.TypeTools.applyTypeParameters(type.t, params, concrete)) {
+                  case Some(t): return Some(t);
+                  case _: // try next
+                }
+              }
+            None;
+          case t = TAnonymous(_): Some(t);
+          case _: None;
+        }
     }
     
-    var type = getType(Context.getExpectedType());
+    var expected = Context.getExpectedType();
+    var type = drill(expected).or(expected);
     var ct = type.toComplex();
-    
-    return
-      mergeExpressions(
-        exprs, 
-        requiredFields(type),
-        ct
-      );
+    return mergeExpressions(
+      exprs, 
+      requiredFields(type),
+      ct
+    );
   }
 
   macro static public function splat(e:Expr, ?prefix:Expr, ?filter:Expr) 

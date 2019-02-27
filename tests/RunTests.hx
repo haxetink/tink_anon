@@ -98,6 +98,13 @@ class RunTests extends TestCase {
     assertEquals(3, o2.foo);
   }
   
+  function testEitherType() {
+    var o:haxe.extern.EitherType<{i:Int}, Array<{i:Int}>> = tink.Anon.merge(i = 1);
+    
+    assertFalse(Std.is(o, Array));
+    assertEquals(1, (cast o).i);
+  }
+  
   function testReadOnly() {
     var o:ReadOnly<{i:Int}> = {i: 1};
     assertEquals(1, o.i);

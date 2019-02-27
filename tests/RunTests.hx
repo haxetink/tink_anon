@@ -3,6 +3,7 @@ package ;
 import haxe.unit.*;
 import tink.anon.*;
 import tink.Anon.*;
+import haxe.extern.EitherType;
 
 class RunTests extends TestCase {
   
@@ -96,6 +97,16 @@ class RunTests extends TestCase {
     var o = { beep: 5, bop: 4, foo: 2 };
     var o2:Example = tink.Anon.merge(o, foo = 3, bar = 5);
     assertEquals(3, o2.foo);
+  }
+  
+  function testEitherType() {
+    var o:EitherType<{i:Int}, Array<{i:Int}>> = tink.Anon.merge(i = 1);
+    assertFalse(Std.is(o, Array));
+    assertEquals(1, (cast o).i);
+    
+    var o:EitherType<EitherType<Array<{f:Float}>, {i:Int}>, Array<{i:Int}>> = tink.Anon.merge(i = 1);
+    assertFalse(Std.is(o, Array));
+    assertEquals(1, (cast o).i);
   }
   
   function testReadOnly() {

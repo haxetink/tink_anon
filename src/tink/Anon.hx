@@ -6,6 +6,7 @@ import tink.anon.Macro.*;
 import haxe.macro.Expr;
 
 using tink.MacroApi;
+using tink.CoreApi;
 #end
 
 class Anon {
@@ -29,14 +30,32 @@ class Anon {
   }
   
   macro static public function merge(exprs:Array<Expr>) {
-    var type = Context.getExpectedType();
+    
+    function drill(type:haxe.macro.Type):Option<haxe.macro.Type> {
+      return
+        if(type == null)
+          None;
+        else switch type.reduce() {
+          case t = TAbstract(_.get() => {from: types, params: params}, concrete):
+            for(type in types)
+              switch drill(haxe.macro.TypeTools.applyTypeParameters(type.t, params, concrete)) {
+                case Some(t): return Some(t);
+                case _: // try next
+              }
+            None;
+          case t = TAnonymous(_): Some(t);
+          case _: None;
+        }
+    }
+    
+    var expected = Context.getExpectedType();
+    var type = drill(expected).or(expected);
     var ct = type.toComplex();
-    return
-      mergeExpressions(
-        exprs, 
-        requiredFields(type),
-        ct
-      );
+    return mergeExpressions(
+      exprs, 
+      requiredFields(type),
+      ct
+    );
   }
 
   macro static public function splat(e:Expr, ?prefix:Expr, ?filter:Expr) 

@@ -12,8 +12,8 @@
 	"contributors": [
 		"back2dos"
 	],
-	"releasenote": "Improve field quoting.",
-	"version": "0.3.3",
+	"releasenote": "Better support for abstracts",
+	"version": "0.4.0",
 	"url": "https://github.com/haxetink/tink_anon/",
 	"dependencies": {
 		"tink_macro": ""

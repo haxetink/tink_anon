@@ -27,4 +27,21 @@ script:
   - lix run travix node
   - lix run travix python
   - lix run travix cpp
+  - lix run travix lua
   # - lix run travix java
+
+
+# jobs:
+#   include:
+#     # - stage: test # should uncomment this when there is no matrix above (e.g. only one os, one env, etc)
+#     - stage: deploy
+#       os: linux
+#       install:
+#         - npm i -g lix
+#         - lix download
+#       script: skip
+#       env:
+#         secure: xxxx
+#       after_success:
+#         - lix run travix install
+#         - lix run travix release

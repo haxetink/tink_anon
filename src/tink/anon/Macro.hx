@@ -88,35 +88,50 @@ class Macro {
     return mergeParts(individual, complex, findField, function (name) return name, pos, as);
   }
 
-  static public function mergeParts(
-    individual:Array<Part>, 
-    complex:Array<Expr>,
-    ?findField:String->Outcome<Option<FieldInfo>, Error>,
-    ?resolve:String->String, 
-    ?pos:Position, 
-    ?as:ComplexType
-  ) {
-    var fields:Array<ObjectField> = [],
-        args = [],
-        callArgs = [],
-        exists = new Map(),
-        optional = [],
-        pos = pos.sanitize();
-
-    if (findField == null)
-      findField = function (_) return Success(None);
-
-    var ret = EObjectDecl(fields).at(pos);
+  static public function mergeParts(individual, complex, ?findField, ?resolve, ?pos:Position, ?as:ComplexType) {
+    var pos = pos.sanitize(),
+        merged = triage(individual, complex, findField, resolve);
+    
+    var ret = EObjectDecl(merged.fields).at(pos);
 
     if (as != null) 
       ret = macro @:pos(pos) ($ret:$as);
+
+    var optional = [
+      for (f in merged.optional) {
+        var name = f.field, 
+            value = f.expr;
+        macro @:pos(value.pos) switch ($value) {
+          case null: 
+          case v: untyped __ret.$name = v;//TODO: this is not exactly elegant
+        }
+      }
+    ];
 
     ret = macro @:pos(pos) {
       var __ret = $ret;
       $b{optional};
       return __ret;
     }
-    ret = ret.func(args, false).asExpr(pos);  
+
+    ret = ret.func([for (d in merged.dependencies) { name: d.name, type: d.type.toComplex() }], false).asExpr(pos);
+
+    return ret.call([for (d in merged.dependencies) d.expr], pos);
+  }
+
+  static public function triage(
+    individual:Array<Part>, 
+    complex:Array<Expr>,
+    ?findField:String->Outcome<Option<FieldInfo>, Error>,
+    ?resolve:String->String
+  ) {
+    var fields:Array<ObjectField> = [],
+        optional:Array<ObjectField> = [],
+        dependencies = [],
+        exists = new Map();
+
+    if (findField == null)
+      findField = function (_) return Success(None);
     
     function add(name, getValue:Option<Type>->Expr, sourceOptional:Bool, ?panicAt:Position, ?quotes) {
       
@@ -135,17 +150,14 @@ class Macro {
           case Success(t):
             exists[name] = true;
             var value = getValue(t.map(function (f) return f.type));
-            if (sourceOptional && t.match(Some({ optional: true })))
-              optional.push(macro @:pos(value.pos) switch ($value) {
-                case null: 
-                case v: untyped __ret.$name = v;//TODO: this is not exactly elegant
-              });
-            else
-              fields.push({
-                field: name,
-                expr: value,
-                quotes: quotes,
-              });            
+            var target = 
+              if (sourceOptional && t.match(Some({ optional: true }))) optional;
+              else fields;
+            target.push({
+              field: name,
+              expr: value,
+              quotes: quotes,
+            });            
         }
     }
 
@@ -166,13 +178,12 @@ class Macro {
     for (e in complex) {
       
       var t = e.typeof().sure(),
-          owner = '__o${args.length}';
+          owner = '__o${dependencies.length}';
       
-      callArgs.push(e);
-
-      args.push({
+      dependencies.push({
         name: owner,
-        type: t.toComplex(),
+        expr: e,
+        type: t,
       });
 
       var isExtern = switch t {
@@ -187,7 +198,11 @@ class Macro {
         }
     }
 
-    return ret.call(callArgs, pos);    
+    return {
+      fields: fields,
+      optional: optional,
+      dependencies: dependencies,
+    }
   }
 
   static public function isPublicField(c:ClassField, ?isExtern:Bool) 

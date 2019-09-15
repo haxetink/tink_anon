@@ -1,0 +1,4 @@
+tests.hxml
+-lib tink_anon
+-lib travix
+--interp

@@ -12,8 +12,8 @@
 	"contributors": [
 		"back2dos"
 	],
-	"releasenote": "Better support for abstracts",
-	"version": "0.4.0",
+	"releasenote": "Expose internal triage logic.",
+	"version": "0.4.1",
 	"url": "https://github.com/haxetink/tink_anon/",
 	"dependencies": {
 		"tink_macro": ""

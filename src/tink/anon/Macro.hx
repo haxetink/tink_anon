@@ -27,7 +27,7 @@ typedef FieldInfo = {
   var optional(default, null):Bool;
   var name(default, null):String;
   var pos(default, null):Position;
-  var type(default, null):Lazy<Type>;
+  var type(default, null):Lazy<Option<Type>>;
 }
 
 class Macro {
@@ -87,7 +87,7 @@ class Macro {
       individual:Array<Part>, complex:Array<Expr>,
       fields:RequireFields, ?resolve:String->String,
       ?pos:Position, ?as:ComplexType, ?errors:{
-        function unknownField(name:String):String;
+        function unknownField(name:Part):Outcome<FieldInfo, String>;
         function duplicateField(name:String):String;
         function missingField(name:String):String;
       }
@@ -97,7 +97,7 @@ class Macro {
 
     if (errors == null)
       errors = {
-        unknownField: function (name) return 'unknown field $name',
+        unknownField: function (part) return Failure('unknown field ${part.name}'),
         duplicateField: function (name) return 'duplicate field $name',
         missingField: function (name) return 'missing field $name',
       }
@@ -119,26 +119,28 @@ class Macro {
           }
         }
 
-        function lookup(field:{ var name(default, null):String; var pos(default, null):Position; }) {
+        for (p in individual) {
+
           var name =
-            if (resolve == null) field.name;
-            else resolve(field.name);
+            if (resolve == null) p.name;
+            else resolve(p.name);
 
           if (defined[name])
-            field.pos.error(errors.duplicateField(name));
+            p.pos.error(errors.duplicateField(name));
 
-          return switch fields[name] {
+          defined[name] = true;
+
+          var info = switch fields[name] {
             case null:
-              field.pos.error(errors.unknownField(name));
+              switch errors.unknownField(p) {
+                case Success(v): v;
+                case Failure(e): p.pos.error(e);
+              }
             case v:
-              defined[name] = true;
               v;
           }
-        }
 
-        for (p in individual) {
-          var info = lookup(p);
-          obj.push({ field: info.name, expr: p.getValue(Some(info.type.get())), quotes: p.quotes });
+          obj.push({ field: info.name, expr: p.getValue(info.type.get()), quotes: p.quotes });
         }
 
         var complex = [for (o in complex) Lazy.ofFunc(
@@ -300,7 +302,7 @@ class Macro {
         name: f.name,
         pos: f.pos,
         optional: f.meta.has(':optional'),
-        type: f.type
+        type: Some(f.type)
       }:FieldInfo)
     ];
 
@@ -326,7 +328,7 @@ class Macro {
           name: f.name,
           pos: f.pos,
           optional: f.meta.has(':optional'),
-          type: function () return typeof(sample.get().field(f.name)),
+          type: function () return Some(typeof(sample.get().field(f.name))),
         }:FieldInfo);
       switch cl.superClass {
         case null:

@@ -178,12 +178,13 @@ class Macro {
         )];
 
         for (name in fields.keys()) if (!defined[name]) {
+          var field = fields[name];
           for (o in complex)
             switch o.get()(name) {
               case null:
               case value:
                 defined[name] = true;
-                if (fields[name].optional)
+                if (field.optional)
                   optionals.push(macro switch ($value) {
                     case null:
                     case v: untyped $i{retName}.$name = v; //not exactly elegant
@@ -192,7 +193,7 @@ class Macro {
                   obj.push({ field: name, expr: value });
                 break;
             }
-          if (!defined[name])
+          if (!(field.optional || defined[name]))
             pos.error(errors.missingField(name));
         }
 

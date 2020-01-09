@@ -26,7 +26,6 @@ enum RequireFields {
 typedef FieldInfo = {
   var optional(default, null):Bool;
   var name(default, null):String;
-  var pos(default, null):Position;
   var type(default, null):Lazy<Option<Type>>;
 }
 
@@ -85,11 +84,11 @@ class Macro {
 
   static public function mergeParts(
       individual:Array<Part>, complex:Array<Expr>,
-      fields:RequireFields, ?resolve:String->String,
+      fields:RequireFields, ?resolveAlias:String->String,
       ?pos:Position, ?as:ComplexType, ?errors:{
         function unknownField(name:Part):Outcome<FieldInfo, String>;
         function duplicateField(name:String):String;
-        function missingField(name:String):String;
+        function missingField(field:FieldInfo):String;
       }
     ) {
 
@@ -99,145 +98,81 @@ class Macro {
       errors = {
         unknownField: function (part) return Failure('unknown field ${part.name}'),
         duplicateField: function (name) return 'duplicate field $name',
-        missingField: function (name) return 'missing field $name',
+        missingField: function (f) return 'missing field ${f.name}',
       }
 
-    return switch fields {
-      case RStatic(fields):
+    inline function resolve(o)
+      return
+        if (resolveAlias != null) resolveAlias(o.name);
+        else o.name;
+
         var obj:Array<ObjectField> = [],
-            vars:Array<Var> = [],
-            optionals:Array<Expr> = [],
-            defined = new Map(),
-            retName = MacroApi.tempName();
+        vars:Array<Var> = [],
+        optionals:Array<Expr> = [],
+        defined = new Map(),
+        retName = MacroApi.tempName();
 
-        var ret = EObjectDecl(obj).at(pos);
-        if (as != null)
-          ret = ret.as(as);
+    var getField = switch fields {
+      case RStatic(fields):
+        function (name) return fields.get(name);
+      case RDynamic(t):
+        var t:Lazy<Option<Type>> = switch t {
+          case null: None;
+          default: Some(t);
+        }
+        function (name) return {
+          optional: false,
+          name: name,
+          type: t,
+        }
+    }
 
-        for (p in individual) {
+    var ret = EObjectDecl(obj).at(pos);
+    if (as != null)
+      ret = ret.as(as);
 
-          var name =
-            if (resolve == null) p.name;
-            else resolve(p.name);
+    for (p in individual) {
 
-          if (defined[name])
-            p.pos.error(errors.duplicateField(name));
+      var name = resolve(p);
 
-          defined[name] = true;
+      if (defined[name])
+        p.pos.error(errors.duplicateField(name));
 
-          var info = switch fields[name] {
+      defined[name] = true;
+
+      var info = switch getField(name) {
+        case null:
+          switch errors.unknownField(p) {
+            case Success(v): v;
+            case Failure(e): p.pos.error(e);
+          }
+        case v:
+          v;
+      }
+
+      obj.push({ field: info.name, expr: p.getValue(info.type.get()), quotes: p.quotes });
+    }
+
+    for (o in complex) {
+      var ot = typeof(o);
+      var given = switch ot.reduce() {
+        case t = TInst(_):
+          classFields(t);
+        case TAnonymous(a):
+          anonFields(a.get());
+        default:
+          o.reject('type has no fields (${ot.toString()})');
+      }
+
+      var varName = null;
+      for (found in given) {
+        var name = resolve(found);
+
+        if (!defined[name])
+          switch getField(name) {
             case null:
-              switch errors.unknownField(p) {
-                case Success(v): v;
-                case Failure(e): p.pos.error(e);
-              }
-            case v:
-              v;
-          }
-
-          obj.push({ field: info.name, expr: p.getValue(info.type.get()), quotes: p.quotes });
-        }
-
-        var complex = [for (o in complex) Lazy.ofFunc(
-          function () {
-            var ot = o.typeof().sure();
-            var getField =
-              switch ot.reduce() {
-                case TAnonymous(_.get().fields => fields):
-                  var m = [for (f in fields) f.name => f];
-                  function (name) return m.get(name);
-                case TInst(_.get() => cl, _):
-                  function (name) return cl.findField(name);
-                default:
-                  o.reject('currently only supporting anonymous objects');
-              }
-
-            var varName = null;
-
-            return function (name:String):Null<Expr> {
-              return switch getField(name) {
-                case null:
-                  null;
-                case f:
-                  if (varName == null) {
-                    var index = complex.indexOf(o);
-                    varName = '__o$index';
-                    vars.push({
-                      name: varName,
-                      type: ot.toComplex(), // may be faster without
-                      expr: o,
-                    });
-                  }
-                  macro @:pos(f.pos) $i{varName}.$name;
-              }
-            }
-          }
-        )];
-
-        for (name in fields.keys()) if (!defined[name]) {
-          var field = fields[name];
-          for (o in complex)
-            switch o.get()(name) {
-              case null:
-              case value:
-                defined[name] = true;
-                if (field.optional)
-                  optionals.push(macro switch ($value) {
-                    case null:
-                    case v: untyped $i{retName}.$name = v; //not exactly elegant
-                  });
-                else
-                  obj.push({ field: name, expr: value });
-                break;
-            }
-          if (!(field.optional || defined[name]))
-            pos.error(errors.missingField(name));
-        }
-
-        vars.sort(function (a, b) return Reflect.compare(a.name, b.name));
-
-        if (optionals.length > 0) {
-          optionals.unshift(macro @:pos(pos) var $retName = $ret);
-          optionals.push(macro @:pos(pos) $i{retName});
-          ret = optionals.toBlock();
-        }
-
-        switch vars {
-          case []: ret;
-          default:
-            EVars(vars).at(pos).concat(ret);
-        }
-      case RDynamic(type): // I'm compelled to merge this case with the above somehow, but perhaps they are different enough (the above picks from complex objects by expected fields)
-        var defined = new Map(),
-            wrap = switch type {
-              case null: function (e) return e;
-              default: var ct = type.toComplex(); function (e) return macro @:pos(e.pos) ($e : $ct);
-            },
-            ret = new Array<ObjectField>(),
-            vars = new Array<Var>();
-
-        for (p in individual)
-          if (defined[p.name])
-            p.pos.error(errors.duplicateField(p.name));
-          else {
-            defined[p.name] = true;
-            ret.push({ field: p.name, expr: p.getValue(None), quotes: p.quotes });
-          }
-
-        for (o in complex) {
-          var ot = typeof(o);
-          var fields = switch ot.reduce() {
-            case t = TInst(_):
-              classFields(t);
-            case TAnonymous(a):
-              anonFields(a.get());
-            default:
-              o.reject('type has no fields (${ot.toString()})');
-          }
-          var varName = null;
-          for (f in fields)
-            if (!defined[f.name]) {
-              defined[f.name] = true;
+            case { optional: optional }:
+              defined[name] = true;
               if (varName == null) {
                 varName = '__o${vars.length}';
                 vars.push({
@@ -246,18 +181,38 @@ class Macro {
                   expr: o
                 });
               }
-              ret.push({ field: f.name, expr: macro $p{[varName, f.name]} });
-            }
-        }
 
-        var ret = EObjectDecl(ret).at(pos);
-        if (as != null)
-          ret = ret.as(as);
+              var value = macro @:pos(o.pos) $p{[varName, found.name]};
 
-        if (vars.length> 0)
-          EVars(vars).at(pos).concat(ret);
-        else
-          ret;
+              if (optional)
+                optionals.push(macro switch ($value) {
+                  case null:
+                  case v: untyped $i{retName}.$name = v; //not exactly elegant
+                });
+              else
+                obj.push({ field: name, expr: value });
+          }
+      }
+    }
+
+    switch fields {
+      case RStatic(fields):
+        for (f in fields)
+          if (!(defined[f.name] || f.optional))
+            pos.error(errors.missingField(f));
+      default:
+    }
+
+    if (optionals.length > 0) {
+      optionals.unshift(macro @:pos(pos) var $retName = $ret);
+      optionals.push(macro @:pos(pos) $i{retName});
+      ret = optionals.toBlock();
+    }
+
+    return switch vars {
+      case []: ret;
+      default:
+        EVars(vars).at(pos).concat(ret);
     }
   }
 
@@ -308,7 +263,7 @@ class Macro {
     return [for (f in a.fields)
       f.name => ({
         name: f.name,
-        pos: f.pos,
+        // pos: f.pos,
         optional: f.meta.has(':optional'),
         type: Some(f.type)
       }:FieldInfo)
@@ -334,7 +289,6 @@ class Macro {
       for (f in cl.fields.get()) if (include(f))
         ret[f.name] = ({
           name: f.name,
-          pos: f.pos,
           optional: f.meta.has(':optional'),
           type: function () return Some(typeof(sample.get().field(f.name))),
         }:FieldInfo);

@@ -106,7 +106,7 @@ class Macro {
         if (resolveAlias != null) resolveAlias(o.name);
         else o.name;
 
-        var obj:Array<ObjectField> = [],
+    var obj:Array<ObjectField> = [],
         vars:Array<Var> = [],
         optionals:Array<Expr> = [],
         defined = new Map(),
@@ -182,7 +182,7 @@ class Macro {
       var ot = typeof(o);
       var given = switch ot.reduce() {
         case t = TInst(_.get() => cl, _):
-          classFields(t, cl, include);
+          classFields(t, include, cl);
         case TAnonymous(a):
           anonFields(a.get());
         default:
@@ -262,12 +262,12 @@ class Macro {
     return return drill(type).or(type);
   }
 
-  static public function isPublicField(c:ClassField, ?isExtern:Bool)
+  static function mustSkip(c:ClassField, ?isExtern:Bool)
     return switch c.kind {
-      case FMethod(_) if (isExtern): false;
-      case FMethod(MethMacro): false;
-      case FMethod(MethInline) if (c.meta.has(':extern')): false;
-      default: c.isPublic;
+      case FMethod(_) if (isExtern): true;
+      case FMethod(MethMacro): true;
+      case FMethod(MethInline) if (c.meta.has(':extern')): true;
+      default: false;
     }
 
   static public function requiredFields(type:Type, ?pos:Position):RequireFields
@@ -279,7 +279,7 @@ class Macro {
         case TAnonymous(a):
           RStatic(anonFields(a.get()));
         case TInst(_.get() => cl, _) if (!cl.isInterface && cl.meta.has(':structInit')):
-          RStatic(classFields(type, cl));
+          RStatic(classFields(type, function (cl, f) return f.isPublic && f.kind.match(FVar(_)), cl));
         case v:
           pos.error('expected type should be struct or @:structInit');
       }
@@ -293,15 +293,12 @@ class Macro {
       }:FieldInfo)
     ];
 
-  static function classFields(type:Type, ?cl:ClassType, ?include) {
+  static function classFields(type:Type, include:ClassType->ClassField->Bool, ?cl:ClassType) {
     if (cl == null)
       cl = switch type {
         case TInst(_.get() => cl, _): cl;
         default: throw 'assert';
       }
-
-    if (include == null)
-      include = function (owner:ClassType, f) return isPublicField(f, owner.isExtern);
 
     var ret = new Map(),
         sample = Lazy.ofFunc(function () {
@@ -310,7 +307,7 @@ class Macro {
         });
 
     function crawl(cl:ClassType) {
-      for (f in cl.fields.get()) if (include(cl, f))
+      for (f in cl.fields.get()) if (include(cl, f) && !mustSkip(f, cl.isExtern))
         ret[f.name] = ({
           name: f.name,
           optional: f.meta.has(':optional'),
@@ -378,7 +375,7 @@ class Macro {
     });
 
     for (f in e.typeof().sure().getFields().sure())
-      if (isPublicField(f) && include(f.name)) {
+      if (f.isPublic && !mustSkip(f) && include(f.name)) {//TODO: pass isExtern
         var field = f.name;
         vars.push({
           name: getName(f.name),

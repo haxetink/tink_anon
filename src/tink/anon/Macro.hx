@@ -153,11 +153,36 @@ class Macro {
       obj.push({ field: info.name, expr: p.getValue(info.type.get()), quotes: p.quotes });
     }
 
+    var include = switch getLocalClass() {
+      case null:
+        null;
+      case _.get() => self:
+        function getId(cl:ClassType)
+          return cl.module + '.' + cl.name;
+
+        var chain = new Map();
+        { // this could probably be cached
+          var cur = self;
+          while (true) {
+            chain[getId(cur)] = true;
+            switch cur.superClass {
+              case null: break;
+              case v: cur = v.t.get();
+            }
+          }
+        }
+        function (other:ClassType, f:ClassField) {
+          if (f.isPublic) return true;
+          if (other.isInterface) return false;
+          return chain.exists(getId(other));
+        }
+    }
+
     for (o in complex) {
       var ot = typeof(o);
       var given = switch ot.reduce() {
-        case t = TInst(_):
-          classFields(t);
+        case t = TInst(_.get() => cl, _):
+          classFields(t, cl, include);
         case TAnonymous(a):
           anonFields(a.get());
         default:
@@ -263,7 +288,6 @@ class Macro {
     return [for (f in a.fields)
       f.name => ({
         name: f.name,
-        // pos: f.pos,
         optional: f.meta.has(':optional'),
         type: Some(f.type)
       }:FieldInfo)
@@ -277,7 +301,7 @@ class Macro {
       }
 
     if (include == null)
-      include = function (f) return isPublicField(f, cl.isExtern);
+      include = function (owner:ClassType, f) return isPublicField(f, owner.isExtern);
 
     var ret = new Map(),
         sample = Lazy.ofFunc(function () {
@@ -286,7 +310,7 @@ class Macro {
         });
 
     function crawl(cl:ClassType) {
-      for (f in cl.fields.get()) if (include(f))
+      for (f in cl.fields.get()) if (include(cl, f))
         ret[f.name] = ({
           name: f.name,
           optional: f.meta.has(':optional'),

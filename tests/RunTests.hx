@@ -6,7 +6,7 @@ import tink.Anon.*;
 import haxe.extern.EitherType;
 
 class RunTests extends TestCase {
-  
+
   function testSplat() {
     var o = {
       foobar: 1,
@@ -92,23 +92,23 @@ class RunTests extends TestCase {
     assertEquals('bar', o.bar());
     assertEquals('foo', o.foo());
   }
-  
+
   function testStructInit() {
     var o = { beep: 5, bop: 4, foo: 2 };
     var o2:Example = tink.Anon.merge(o, foo = 3, bar = 5);
     assertEquals(3, o2.foo);
   }
-  
+
   function testEitherType() {
     var o:EitherType<{i:Int}, Array<{i:Int}>> = tink.Anon.merge(i = 1);
     assertFalse(Std.is(o, Array));
     assertEquals(1, (cast o).i);
-    
+
     var o:EitherType<EitherType<Array<{f:Float}>, {i:Int}>, Array<{i:Int}>> = tink.Anon.merge(i = 1);
     assertFalse(Std.is(o, Array));
     assertEquals(1, (cast o).i);
   }
-  
+
   function testReadOnly() {
     var o:ReadOnly<{i:Int}> = {i: 1};
     assertEquals(1, o.i);
@@ -125,13 +125,13 @@ class RunTests extends TestCase {
       else 500
     );
   }
-  
+
 }
 
 @:structInit class Example {
-  public var foo:Int; 
-  public var bar:Int; 
-  public var beep:Int; 
+  public var foo:Int;
+  public var bar:Int;
+  public var beep:Int;
   public var bop:Int;
 }
 

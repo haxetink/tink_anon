@@ -1,8 +1,6 @@
 package tink.anon;
 
-#if !macro
-  #error
-#end
+#if macro
 import haxe.macro.Context.*;
 import haxe.macro.Expr;
 import haxe.macro.Type;
@@ -13,37 +11,33 @@ using haxe.macro.Tools;
 using tink.MacroApi;
 using tink.CoreApi;
 
-typedef Part = { 
+typedef Part = {
   var name(default, null):String;
   var pos(default, null):Position;
-  var getValue(default, null):Option<Type>->Expr;
+  function getValue(expected:Option<Type>):Expr;
   @:optional var quotes(default, null):QuoteStatus;
 }
 
-abstract FieldInfo({ optional:Bool, type: Type }) {
+enum RequireFields {
+  RStatic(fields:Map<String, FieldInfo>);
+  RDynamic(?type:Type);
+}
 
-  public var optional(get, never):Bool;
-    inline function get_optional() return this.optional;
-
-  public var type(get, never):Type;
-    inline function get_type() return this.type;
-
-  public inline function new(o) this = o;
-  @:from static function ofType(type:Type)
-    return new FieldInfo({ optional: false, type: type });
-  @:from static function ofClassField(f:ClassField)
-    return new FieldInfo({ optional: f.meta.has(':optional'), type: f.type });
+typedef FieldInfo = {
+  var optional(default, null):Bool;
+  var name(default, null):String;
+  var type(default, null):Lazy<Option<Type>>;
 }
 
 class Macro {
-  
+
   static public function buildReadOnly() {
     return BuildCache.getType('tink.anon.ReadOnly', function(ctx) {
       var name = ctx.name;
       var ct = ctx.type.toComplex();
       var def = macro class $name {};
       function add(c:TypeDefinition) def.fields = def.fields.concat(c.fields);
-      
+
       switch ctx.type.reduce() {
         case TAnonymous(_.get() => {fields: fields}):
           for(field in fields) {
@@ -57,21 +51,21 @@ class Macro {
         default:
           ctx.pos.error('Only supports anonymous structures');
       }
-      
+
       def.pack = ['tink', 'anon'];
       def.kind = TDStructure;
       return def;
     });
   }
-  
-  static public function mergeExpressions(exprs:Array<Expr>, ?findField, ?pos, ?as) {
+
+  static public function mergeExpressions(exprs:Array<Expr>, fields, ?pos, ?as) {
     var complex = [],
         individual:Array<Part> = [];
 
     function add(name, expr, pos)
       individual.push({ name: name, getValue: function (_) return expr, pos: pos });
 
-    for (e in exprs) 
+    for (e in exprs)
       switch e {
         case macro $name = $v:
           add(name.getIdent().sure(), v, name.pos);
@@ -81,163 +75,259 @@ class Macro {
           for (f in fields)
             add(f.field, f.expr, f.expr.pos);
 
-        default: 
+        default:
           complex.push(e);
       }
-    
-    return mergeParts(individual, complex, findField, function (name) return name, pos, as);
+
+    return mergeParts(individual, complex, fields, null, pos, as);
   }
 
-  static public function mergeParts(individual, complex, ?findField, ?resolve, ?pos:Position, ?as:ComplexType) {
-    var pos = pos.sanitize(),
-        merged = triage(individual, complex, findField, resolve);
-    
-    var ret = EObjectDecl(merged.fields).at(pos);
-
-    if (as != null) 
-      ret = macro @:pos(pos) ($ret:$as);
-
-    var optional = [
-      for (f in merged.optional) {
-        var name = f.field, 
-            value = f.expr;
-        macro @:pos(value.pos) switch ($value) {
-          case null: 
-          case v: untyped __ret.$name = v;//TODO: this is not exactly elegant
-        }
+  static public function mergeParts(
+      individual:Array<Part>, complex:Array<Expr>,
+      fields:RequireFields, ?resolveAlias:String->String,
+      ?pos:Position, ?as:ComplexType, ?errors:{
+        function unknownField(name:Part):Outcome<FieldInfo, String>;
+        function duplicateField(name:String):String;
+        function missingField(field:FieldInfo):String;
       }
+    ) {
+
+    pos = pos.sanitize();
+
+    if (errors == null)
+      errors = {
+        unknownField: function (part) return Failure('unknown field ${part.name}'),
+        duplicateField: function (name) return 'duplicate field $name',
+        missingField: function (f) return 'missing field ${f.name}',
+      }
+
+    inline function resolve(o)
+      return
+        if (resolveAlias != null) resolveAlias(o.name);
+        else o.name;
+
+    var obj:Array<ObjectField> = [],
+        vars:Array<Var> = [],
+        optionals:Array<Expr> = [],
+        defined = new Map(),
+        retName = MacroApi.tempName();
+
+    var getField = switch fields {
+      case RStatic(fields):
+        function (name) return fields.get(name);
+      case RDynamic(t):
+        var t:Lazy<Option<Type>> = switch t {
+          case null: None;
+          default: Some(t);
+        }
+        function (name) return {
+          optional: false,
+          name: name,
+          type: t,
+        }
+    }
+
+    var ret = EObjectDecl(obj).at(pos);
+    if (as != null)
+      ret = ret.as(as);
+
+    for (p in individual) {
+
+      var name = resolve(p);
+
+      if (defined[name])
+        p.pos.error(errors.duplicateField(name));
+
+      defined[name] = true;
+
+      var info = switch getField(name) {
+        case null:
+          switch errors.unknownField(p) {
+            case Success(v): v;
+            case Failure(e): p.pos.error(e);
+          }
+        case v:
+          v;
+      }
+
+      obj.push({ field: info.name, expr: p.getValue(info.type.get()), quotes: p.quotes });
+    }
+
+    var include = switch getLocalClass() {
+      case null:
+        null;
+      case _.get() => self:
+        function getId(cl:ClassType)
+          return cl.module + '.' + cl.name;
+
+        var chain = new Map();
+        { // this could probably be cached
+          var cur = self;
+          while (true) {
+            chain[getId(cur)] = true;
+            switch cur.superClass {
+              case null: break;
+              case v: cur = v.t.get();
+            }
+          }
+        }
+        function (other:ClassType, f:ClassField) {
+          if (f.isPublic) return true;
+          if (other.isInterface) return false;
+          return chain.exists(getId(other));
+        }
+    }
+
+    for (o in complex) {
+      var ot = typeof(o);
+      var given = switch ot.reduce() {
+        case t = TInst(_.get() => cl, _):
+          classFields(t, include, cl);
+        case TAnonymous(a):
+          anonFields(a.get());
+        default:
+          o.reject('type has no fields (${ot.toString()})');
+      }
+
+      var varName = null;
+      for (found in given) {
+        var name = resolve(found);
+
+        if (!defined[name])
+          switch getField(name) {
+            case null:
+            case { optional: optional }:
+              defined[name] = true;
+              if (varName == null) {
+                varName = '__o${vars.length}';
+                vars.push({
+                  name: varName,
+                  type: null,
+                  expr: o
+                });
+              }
+
+              var value = macro @:pos(o.pos) $p{[varName, found.name]};
+
+              if (optional)
+                optionals.push(macro switch ($value) {
+                  case null:
+                  case v: untyped $i{retName}.$name = v; //not exactly elegant
+                });
+              else
+                obj.push({ field: name, expr: value });
+          }
+      }
+    }
+
+    switch fields {
+      case RStatic(fields):
+        for (f in fields)
+          if (!(defined[f.name] || f.optional))
+            pos.error(errors.missingField(f));
+      default:
+    }
+
+    if (optionals.length > 0) {
+      optionals.unshift(macro @:pos(pos) var $retName = $ret);
+      optionals.push(macro @:pos(pos) $i{retName});
+      ret = optionals.toBlock();
+    }
+
+    return switch vars {
+      case []: ret;
+      default:
+        EVars(vars).at(pos).concat(ret);
+    }
+  }
+
+  static public function drillAbstracts(type:Type) {
+    function drill(type:haxe.macro.Type):Option<haxe.macro.Type> {
+      return
+        if(type == null)
+          None;
+        else switch type.reduce() {
+          case t = TAbstract(_.get() => {from: types, params: params}, concrete):
+            for(type in types)
+              switch drill(haxe.macro.TypeTools.applyTypeParameters(type.t, params, concrete)) {
+                case Some(t): return Some(t);
+                case _: // try next
+              }
+            None;
+          case t = TAnonymous(_): Some(t);
+          case _: None;
+        }
+    }
+
+    return return drill(type).or(type);
+  }
+
+  static function mustSkip(c:ClassField, ?isExtern:Bool)
+    return switch c.kind {
+      case FMethod(_) if (isExtern): true;
+      case FMethod(MethMacro): true;
+      case FMethod(MethInline) if (c.meta.has(':extern')): true;
+      default: false;
+    }
+
+  static public function requiredFields(type:Type, ?pos:Position):RequireFields
+    return
+      if (type == null) RDynamic();
+      else switch type.reduce() {
+        case TDynamic(t): RDynamic(t);
+        case TMono(_.get() => null): RDynamic();
+        case TAnonymous(a):
+          RStatic(anonFields(a.get()));
+        case TInst(_.get() => cl, _) if (!cl.isInterface && cl.meta.has(':structInit')):
+          RStatic(classFields(type, function (cl, f) return f.isPublic && f.kind.match(FVar(_)), cl));
+        case v:
+          pos.error('expected type should be struct or @:structInit');
+      }
+
+  static function anonFields(a:AnonType)
+    return [for (f in a.fields)
+      f.name => ({
+        name: f.name,
+        optional: f.meta.has(':optional'),
+        type: Some(f.type)
+      }:FieldInfo)
     ];
 
-    ret = macro @:pos(pos) {
-      var __ret = $ret;
-      $b{optional};
-      return __ret;
-    }
-
-    ret = ret.func([for (d in merged.dependencies) { name: d.name, type: d.type.toComplex() }], false).asExpr(pos);
-
-    return ret.call([for (d in merged.dependencies) d.expr], pos);
-  }
-
-  static public function triage(
-    individual:Array<Part>, 
-    complex:Array<Expr>,
-    ?findField:String->Outcome<Option<FieldInfo>, Error>,
-    ?resolve:String->String
-  ) {
-    var fields:Array<ObjectField> = [],
-        optional:Array<ObjectField> = [],
-        dependencies = [],
-        exists = new Map();
-
-    if (findField == null)
-      findField = function (_) return Success(None);
-    
-    function add(name, getValue:Option<Type>->Expr, sourceOptional:Bool, ?panicAt:Position, ?quotes) {
-      
-      if (resolve != null)
-        name = resolve(name);
-
-      function panic(message)
-        if (panicAt != null) panicAt.error(message);
-
-      if (exists[name]) 
-        panic('Duplicate field $name');
-      else 
-        switch findField(name) {
-          case Failure(e): 
-            panic(e.message);
-          case Success(t):
-            exists[name] = true;
-            var value = getValue(t.map(function (f) return f.type));
-            var target = 
-              if (sourceOptional && t.match(Some({ optional: true }))) optional;
-              else fields;
-            target.push({
-              field: name,
-              expr: value,
-              quotes: quotes,
-            });            
-        }
-    }
-
-    for (f in individual)
-      add(f.name, f.getValue, false, f.pos, f.quotes);
-
-    var isPrivateVisible = 
-      switch getLocalType() {
-        case TInst(_.get() => cl, _):
-          function (f:ClassField)
-            return switch cl.findField(f.name) {
-              case null: false;
-              case l: Std.string(l.pos) == Std.string(f.pos);
-            }
-        default: function (_) return false;
+  static function classFields(type:Type, include:ClassType->ClassField->Bool, ?cl:ClassType) {
+    if (cl == null)
+      cl = switch type {
+        case TInst(_.get() => cl, _): cl;
+        default: throw 'assert';
       }
 
-    for (e in complex) {
-      
-      var t = e.typeof().sure(),
-          owner = '__o${dependencies.length}';
-      
-      dependencies.push({
-        name: owner,
-        expr: e,
-        type: t,
-      });
+    var ret = new Map(),
+        sample = Lazy.ofFunc(function () {
+          var ct = type.toComplex();
+          return macro (cast null : $ct);
+        });
 
-      var isExtern = switch t {
-        case TInst(_.get().isExtern => v, _): v;
-        default: false;
+    function crawl(cl:ClassType) {
+      for (f in cl.fields.get()) if (include(cl, f) && !mustSkip(f, cl.isExtern))
+        ret[f.name] = ({
+          name: f.name,
+          optional: f.meta.has(':optional'),
+          type: function () return Some(typeof(sample.get().field(f.name))),
+        }:FieldInfo);
+      switch cl.superClass {
+        case null:
+        case v: crawl(v.t.get());
       }
-
-      for (f in t.getFields().sure()) 
-        if (isPrivateVisible(f) || isPublicField(f, isExtern)) {
-          var name = f.name;    
-          add(name, function (_) return macro @:pos(f.pos) $i{owner}.$name, f.meta.has(':optional'));
-        }
     }
 
-    return {
-      fields: fields,
-      optional: optional,
-      dependencies: dependencies,
-    }
+    crawl(cl);
+    return ret;
   }
 
-  static public function isPublicField(c:ClassField, ?isExtern:Bool) 
-    return switch c.kind {
-      case FMethod(_) if (isExtern): false;
-      case FMethod(MethMacro): false;
-      case FMethod(MethInline) if (c.meta.has(':extern')): false;
-      default: c.isPublic;
-    }
-
-  static public function requiredFields(type:Type)
-    return switch type {
-      case null: function (_) return Success(None);
-      default: 
-        var ct = type.toComplex();
-        var isOptional = switch type.getFields(false) {
-          case Success(f): 
-            var optional = [for (f in f) f.name => f.meta.has(':optional')];
-            function (name) return optional[name];
-          default: function (_) return false;
-        }
-        function (name:String)
-          return 
-            (macro (null : $ct).$name).typeof()
-              .map(function (t) return Some(new FieldInfo({
-                type: t,
-                optional: isOptional(name),
-              })));
-    }
-
-  static function parseFilter(e:Expr) 
+  static function parseFilter(e:Expr)
     return switch e {
-      case null | macro null: 
+      case null | macro null:
         function (_) return true;
-      case macro !$e: 
+      case macro !$e:
         var f = parseFilter(e);
         function (x) return !f(x);
       case { expr: EArrayDecl(_.map(parseFilter) => filters) }:
@@ -247,17 +337,17 @@ class Macro {
         }
       case macro $i{ident}:
         return function (s) return s == ident;
-      case { expr: EConst(CString(s)) }: 
+      case { expr: EConst(CString(s)) }:
         s = s.replace('*', '.*');
         new EReg('^($s)$', 'i').match;
-      case { expr: EConst(CRegexp(pat, flags)) }: 
+      case { expr: EConst(CRegexp(pat, flags)) }:
         new EReg(pat, flags).match;
-      default: 
+      default:
         e.reject('Not a valid filter. Must be a string constant or a regex literal');
-    }    
+    }
 
   static public function makeSplat(e:Expr, ?prefix:Expr, ?filter:Expr) {
-    
+
     var include = null;
     var prefix = switch prefix.getIdent() {
       case Success('null') | Failure(_):
@@ -269,7 +359,7 @@ class Macro {
     }
 
     function getName(name:String)
-      return 
+      return
         if (prefix == null) name;
         else prefix + name.charAt(0).toUpperCase() + name.substr(1);
 
@@ -285,7 +375,7 @@ class Macro {
     });
 
     for (f in e.typeof().sure().getFields().sure())
-      if (isPublicField(f) && include(f.name)) {
+      if (f.isPublic && !mustSkip(f) && include(f.name)) {//TODO: pass isExtern
         var field = f.name;
         vars.push({
           name: getName(f.name),
@@ -295,6 +385,7 @@ class Macro {
       }
 
     return ret;
-  }    
-    
+  }
+
 }
+#end

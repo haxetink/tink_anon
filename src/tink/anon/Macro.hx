@@ -14,7 +14,7 @@ using tink.CoreApi;
 typedef Part = {
   var name(default, null):String;
   var pos(default, null):Position;
-  function getValue(expected:Option<Type>):Expr;
+  var expr(default, null):Lazy<Expr>;
   @:optional var quotes(default, null):QuoteStatus;
 }
 
@@ -27,7 +27,8 @@ typedef FieldInfo = {
   var optional(default, null):Bool;
   var name(default, null):String;
   var pos(default, null):Position;
-  var type(default, null):Lazy<Option<Type>>;
+  var ct(default, null):Lazy<ComplexType>;
+  var type(default, null):Lazy<Type>;
 }
 
 class Macro {
@@ -64,7 +65,7 @@ class Macro {
         individual:Array<Part> = [];
 
     function add(name, expr, pos)
-      individual.push({ name: name, getValue: function (_) return expr, pos: pos });
+      individual.push({ name: name, expr: expr, pos: pos });
 
     for (e in exprs)
       switch e {
@@ -140,7 +141,7 @@ class Macro {
               v;
           }
 
-          obj.push({ field: info.name, expr: p.getValue(info.type.get()), quotes: p.quotes });
+          obj.push({ field: info.name, expr: p.expr, quotes: p.quotes });
         }
 
         var complex = [for (o in complex) Lazy.ofFunc(
@@ -206,7 +207,9 @@ class Macro {
         var defined = new Map(),
             wrap = switch type {
               case null: function (e) return e;
-              default: var ct = type.toComplex(); function (e) return macro @:pos(e.pos) ($e : $ct);
+              default:
+                var ct = type.toComplex();
+                function (e) return macro @:pos(e.pos) ($e : $ct);
             },
             ret = new Array<ObjectField>(),
             vars = new Array<Var>();
@@ -216,7 +219,7 @@ class Macro {
             p.pos.error(errors.duplicateField(p.name));
           else {
             defined[p.name] = true;
-            ret.push({ field: p.name, expr: p.getValue(None), quotes: p.quotes });
+            ret.push({ field: p.name, expr: p.expr, quotes: p.quotes });
           }
 
         for (o in complex) {
@@ -300,9 +303,10 @@ class Macro {
     return [for (f in a.fields)
       f.name => ({
         name: f.name,
-        pos: f.pos,
         optional: f.meta.has(':optional'),
-        type: Some(f.type)
+        pos: f.pos,
+        ct: function () return f.type.toComplex(),
+        type: f.type,
       }:FieldInfo)
     ];
 
@@ -323,13 +327,16 @@ class Macro {
         });
 
     function crawl(cl:ClassType) {
-      for (f in cl.fields.get()) if (include(f))
+      for (f in cl.fields.get()) if (include(f)) {
+        var type = Lazy.ofFunc(function () return typeof(sample.get().field(f.name)));
         ret[f.name] = ({
           name: f.name,
-          pos: f.pos,
           optional: f.meta.has(':optional'),
-          type: function () return Some(typeof(sample.get().field(f.name))),
+          pos: f.pos,
+          type: type,
+          ct: type.map(function (t) return t.toComplex()),
         }:FieldInfo);
+      }
       switch cl.superClass {
         case null:
         case v: crawl(v.t.get());

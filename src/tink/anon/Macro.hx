@@ -105,19 +105,14 @@ class Macro {
     return switch fields {
       case RStatic(fields):
         var obj:Array<ObjectField> = [],
-            vars = [],
-            optionals = [],
+            vars:Array<Var> = [],
+            optionals:Array<Expr> = [],
             defined = new Map(),
             retName = MacroApi.tempName();
 
-        var ret = {
-          macro {
-            ${EVars(vars).at(pos)};
-            var $retName:$as = ${EObjectDecl(obj).at(pos)};
-            $b{optionals};
-            $i{retName}
-          }
-        }
+        var ret = EObjectDecl(obj).at(pos);
+        if (as != null)
+          ret = ret.as(as);
 
         for (p in individual) {
 
@@ -201,7 +196,17 @@ class Macro {
 
         vars.sort(function (a, b) return Reflect.compare(a.name, b.name));
 
-        ret;
+        if (optionals.length > 0) {
+          optionals.unshift(macro @:pos(pos) var $retName = $ret);
+          optionals.push(macro @:pos(pos) $i{retName});
+          ret = optionals.toBlock();
+        }
+
+        switch vars {
+          case []: ret;
+          default:
+            EVars(vars).at(pos).concat(ret);
+        }
       case RDynamic(type): // I'm compelled to merge this case with the above somehow, but perhaps they are different enough (the above picks from complex objects by expected fields)
         var defined = new Map(),
             wrap = switch type {
@@ -249,7 +254,10 @@ class Macro {
         if (as != null)
           ret = ret.as(as);
 
-        return [EVars(vars).at(pos), ret].toBlock();
+        if (vars.length> 0)
+          EVars(vars).at(pos).concat(ret);
+        else
+          ret;
     }
   }
 

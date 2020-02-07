@@ -23,8 +23,15 @@ enum RequireFields {
   RDynamic(?type:Type);
 }
 
+enum FieldWrite {
+  WNever;
+  WPrivate;
+  WPlain;
+}
+
 typedef FieldInfo = {
   var optional(default, null):Bool;
+  var write(default, null):FieldWrite;
   var name(default, null):String;
   var type(default, null):Lazy<Option<Type>>;
 }
@@ -124,6 +131,7 @@ class Macro {
           optional: false,
           name: name,
           type: t,
+          write: WPlain,
         }
     }
 
@@ -196,7 +204,7 @@ class Macro {
         if (!defined[name])
           switch getField(name) {
             case null:
-            case { optional: optional }:
+            case { optional: optional, type: type, write: write }:
               defined[name] = true;
               if (varName == null) {
                 varName = '__o${vars.length}';
@@ -207,15 +215,32 @@ class Macro {
                 });
               }
 
-              var value = macro @:pos(o.pos) $p{[varName, found.name]};
+              var value = {
+                var name = found.name;
+                macro @:pos(o.pos) $i{varName}.$name;
+              }
 
-              if (optional)
-                optionals.push(macro switch ($value) {
-                  case null:
-                  case v: untyped $i{retName}.$name = v; //not exactly elegant
-                });
-              else
-                obj.push({ field: name, expr: value });
+              switch type.get() {
+                case Some(_.toComplex() => t):
+                  value = macro @:pos(value.pos) ($value : $t);
+                default:
+              }
+
+              switch [optional, write] {
+                case [true, WNever]:
+
+                  optionals.push(macro switch ($value) {
+                    case null:
+                    case v: untyped $i{retName}.$name = v; //not exactly elegant ... it might be cleverer to purge nulls in a postprocessing step
+                  });
+                case [true, _]:
+                  optionals.push(macro switch ($value) {
+                    case null:
+                    case v: @:privateAccess $i{retName}.$name = v;
+                  });
+                default:
+                    obj.push({ field: name, expr: value });
+              }
           }
       }
     }
@@ -270,6 +295,15 @@ class Macro {
       default: false;
     }
 
+  static function writeAccess(c:ClassField)
+    return switch c {
+      case { isFinal: true }: WNever;
+      case { kind: FMethod(MethDynamic) }: WPlain;
+      case { kind: FMethod(_) }: WNever;
+      case { kind: FVar(_, AccNever) }: WNever;
+      default: WPrivate;
+    }
+
   static public function requiredFields(type:Type, ?pos:Position):RequireFields
     return
       if (type == null) RDynamic();
@@ -284,14 +318,18 @@ class Macro {
           pos.error('expected type should be struct or @:structInit');
       }
 
-  static function anonFields(a:AnonType)
-    return [for (f in a.fields)
+  static public function fieldsToInfos(fields:Iterable<ClassField>)
+    return [for (f in fields)
       f.name => ({
         name: f.name,
         optional: f.meta.has(':optional'),
-        type: Some(f.type)
+        type: Some(f.type),
+        write: writeAccess(f),
       }:FieldInfo)
     ];
+
+  static function anonFields(a:AnonType)
+    return fieldsToInfos(a.fields);
 
   static function classFields(type:Type, include:ClassType->ClassField->Bool, ?cl:ClassType) {
     if (cl == null)
@@ -312,6 +350,7 @@ class Macro {
           name: f.name,
           optional: f.meta.has(':optional'),
           type: function () return Some(typeof(sample.get().field(f.name))),
+          write: writeAccess(f),
         }:FieldInfo);
       switch cl.superClass {
         case null:

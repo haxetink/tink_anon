@@ -318,12 +318,15 @@ class Macro {
           pos.error('expected type should be struct or @:structInit');
       }
 
-  static public function fieldsToInfos(fields:Iterable<ClassField>)
+  static public function fieldsToInfos(fields:Iterable<ClassField>, ?getType:ClassField->Type)
     return [for (f in fields)
       f.name => ({
         name: f.name,
         optional: f.meta.has(':optional'),
-        type: Some(f.type),
+        type: switch getType {
+          case null: Some(f.type);
+          default: () -> Some(getType(f));
+        },
         write: writeAccess(f),
       }:FieldInfo)
     ];

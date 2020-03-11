@@ -297,7 +297,9 @@ class Macro {
 
   static function writeAccess(c:ClassField)
     return switch c {
+      #if haxe4
       case { isFinal: true }: WNever;
+      #end
       case { kind: FMethod(MethDynamic) }: WPlain;
       case { kind: FMethod(_) }: WNever;
       case { kind: FVar(_, AccNever) }: WNever;
@@ -325,7 +327,7 @@ class Macro {
         optional: f.meta.has(':optional'),
         type: switch getType {
           case null: Some(f.type);
-          default: () -> Some(getType(f));
+          default: function() return Some(getType(f));
         },
         write: writeAccess(f),
       }:FieldInfo)

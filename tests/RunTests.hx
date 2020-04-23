@@ -5,6 +5,8 @@ import tink.anon.*;
 import tink.Anon.*;
 import haxe.extern.EitherType;
 
+using tink.CoreApi;
+
 class RunTests extends TestCase {
 
   function testSplat() {
@@ -113,6 +115,39 @@ class RunTests extends TestCase {
     var o:ReadOnly<{i:Int}> = {i: 1};
     assertEquals(1, o.i);
     Should.notCompile(o.i = 3, ~/Cannot access field or identifier i for writing/);
+  }
+
+  function testIssue15() {
+    function lazy<X>(l:tink.core.Lazy<X>)
+      return l.get();
+
+    function future<X>(f:Future<X>) {
+      var ret = None;
+      f.handle(function (v) ret = Some(v));
+      return ret.force();
+    }
+
+    function promise<X>(p:Promise<X>)
+      return future(p).sure();
+
+    var a = { a: 12 },
+        b = { b: 13 };
+
+    var ab = lazy(tink.Anon.merge(a, b));
+
+    assertEquals(12, ab.a);
+    assertEquals(13, ab.b);
+
+    var ab = future(tink.Anon.merge(a, b));
+
+    assertEquals(12, ab.a);
+    assertEquals(13, ab.b);
+
+    var ab = promise(Promise.lift(true).next(function (_) return tink.Anon.merge(a, b)));
+
+    assertEquals(12, ab.a);
+    assertEquals(13, ab.b);
+
   }
 
   static function main() {

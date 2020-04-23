@@ -306,6 +306,26 @@ class Macro {
       default: WPrivate;
     }
 
+  static function takesAll(a:AbstractType) {
+
+    for (f in a.from)
+      switch f.field {
+        case null: // do something here?
+        case f:
+          switch f.type.reduce() {
+            case TFun(args, _):
+              switch args[0].t {
+                case TInst(_.get() => { kind: KTypeParameter([]) }, _):
+                  return true;
+                default:
+              }
+            default:
+          }
+      }
+
+    return false;
+  }
+
   static public function requiredFields(type:Type, ?pos:Position):RequireFields
     return
       if (type == null) RDynamic();
@@ -316,8 +336,10 @@ class Macro {
           RStatic(anonFields(a.get()));
         case TInst(_.get() => cl, _) if (!cl.isInterface && cl.meta.has(':structInit')):
           RStatic(classFields(type, function (cl, f) return f.isPublic && f.kind.match(FVar(_)), cl));
-        case v:
-          pos.error('expected type should be struct or @:structInit');
+        case TAbstract(_.get() => a, [t]) if (takesAll(a)):
+          requiredFields(t);
+        default:
+          pos.error('expected type should be struct or @:structInit but found ${type.toString()}');
       }
 
   static public function fieldsToInfos(fields:Iterable<ClassField>, ?getType:ClassField->Type)

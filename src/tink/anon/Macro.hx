@@ -226,9 +226,8 @@ class Macro {
                 default:
               }
 
-              switch [optional, write] {
+              switch [optional && found.optional, write] {
                 case [true, WNever]:
-
                   optionals.push(macro switch ($value) {
                     case null:
                     case v: untyped $i{retName}.$name = v; //not exactly elegant ... it might be cleverer to purge nulls in a postprocessing step

@@ -158,7 +158,9 @@ class Macro {
           v;
       }
 
-      obj.push({ field: info.name, expr: p.getValue(info.type.get()), quotes: p.quotes });
+      var o:ObjectField = { field: info.name, expr: p.getValue(info.type.get()), quotes: p.quotes };
+      Reflect.setField(o, 'name_pos', p.pos);
+      obj.push(o);
     }
 
     var include = switch getLocalClass() {

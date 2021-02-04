@@ -117,6 +117,7 @@ class RunTests extends TestCase {
     Should.notCompile(o.i = 3, ~/Cannot access field or identifier i for writing/);
   }
 
+  #if haxe4
   function testPartial() {
     var a:Array<Partial<{i:Int,foo:{bar:String}}>> = [
       {},
@@ -126,6 +127,7 @@ class RunTests extends TestCase {
     ];
     assertTrue(true);
   }
+  #end
 
   function testIssue15() {
     function lazy<X>(l:tink.core.Lazy<X>)

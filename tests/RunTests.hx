@@ -117,6 +117,16 @@ class RunTests extends TestCase {
     Should.notCompile(o.i = 3, ~/Cannot access field or identifier i for writing/);
   }
 
+  function testPartial() {
+    var a:Array<Partial<{i:Int,foo:{bar:String}}>> = [
+      {},
+      {i: 123},
+      {foo: {}},
+      {foo: { bar: '123' }},
+    ];
+    assertTrue(true);
+  }
+
   function testIssue15() {
     function lazy<X>(l:tink.core.Lazy<X>)
       return l.get();

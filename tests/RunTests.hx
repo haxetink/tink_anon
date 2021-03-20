@@ -187,3 +187,17 @@ class FooBar {
   public function foo() return 'foo';
   public function bar() return 'bar';
 }
+
+#if haxe4
+typedef IIter = Interface<Iterator<Int> & { final foo:Int; }>;
+class Iter implements IIter {
+  public final foo:Int = 123;
+  public function new() {
+
+  }
+  public function hasNext()
+    return false;
+  public function next()
+    return foo;
+}
+#end

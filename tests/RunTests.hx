@@ -192,7 +192,7 @@ class RunTests extends TestCase {
       },
       d: {
         g: v -> v + 1,
-        h: v -> v + 1,
+        h: v -> v * v,
       }
     });
     assertEquals(2, t.a);
@@ -200,8 +200,7 @@ class RunTests extends TestCase {
     assertEquals(4, t.c.e);
     assertEquals(5, t.c.f);
     assertEquals(6, t.d.g);
-    assertEquals(7, t.d.h);
-    
+    assertEquals(36, t.d.h);
     
     var o:{a:Int, ?b:Int, c:{e:Int, ?f:Int}, ?d:{g:Int, ?h:Int}} = {a: 1, c: {e: 3, f: 4}}
     var t = transform(o, {c: v -> v.e});
@@ -213,6 +212,7 @@ class RunTests extends TestCase {
     var t = transform(o, {c: v -> v.e});
     assertEquals(1, t.a);
     assertEquals(3, t.c);
+    // t.a = 1; // can't write to final
     #end
   }
 

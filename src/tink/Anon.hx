@@ -60,58 +60,43 @@ class Anon {
           var optional = f.meta.has(':optional');
           var nested = f.type.reduce().match(TAnonymous(_));
           
+          function addSetter(e) {
+            if(optional) {
+              setters.push(macro if(Reflect.hasField(target, $v{fname})) result.$fname = $e);
+            } else {
+              setters.push(macro result.$fname = $e);
+            }
+          }
+          
+          function addCtField(ct) {
+            resultCtFields.push({
+              name: f.name,
+              kind: FVar(ct),
+              meta: optional ? [{name: ':optional', pos: f.pos}] : [],
+              #if haxe4
+              access: f.isFinal ? [AFinal] : [],
+              #end
+              pos: f.pos,
+            });
+          }
+          
           switch patchFields.find(p -> p.field == fname) {
             case null:
-              resultCtFields.push({
-                name: f.name,
-                kind: FVar(f.type.toComplex()),
-                #if haxe4
-                access: f.isFinal ? [AFinal] : [],
-                #end
-                pos: f.pos,
-              });
-            
-              if(optional) {
-                setters.push(macro if(Reflect.hasField(target, $v{fname})) result.$fname = target.$fname);
-              } else {
-                setters.push(macro result.$fname = target.$fname);
-              }
+              addCtField(f.type.toComplex());
+              addSetter(macro target.$fname);
+              
             case {expr: p = {expr: EObjectDecl(_), pos: pos}}:
               if(nested) {
-                
-                resultCtFields.push({
-                  name: f.name,
-                  kind: FVar(Context.typeof(macro tink.Anon.transform($target.$fname, $p)).toComplex()),
-                  meta: optional ? [{name: ':optional', pos: f.pos}] : [],
-                  #if haxe4
-                  access: f.isFinal ? [AFinal] : [],
-                  #end
-                  pos: f.pos,
-                });
-              
-                if(optional) 
-                  setters.push(macro if(Reflect.hasField(target, $v{fname})) result.$fname = tink.Anon.transform(target.$fname, $p));
-                else
-                  setters.push(macro result.$fname = tink.Anon.transform(target.$fname, $p));
+                addCtField(Context.typeof(macro tink.Anon.transform($target.$fname, $p)).toComplex());
+                addSetter(macro tink.Anon.transform(target.$fname, $p));
               } else {
                 pos.error('Cannot apply object patch to non-nested field. Use a function instead');
               }
+              
             case {expr: p = {expr: EFunction(_)}}:
+              addCtField(Context.typeof(macro ${p}($target.$fname)).toComplex());
+              addSetter(macro ${p}(target.$fname));
               
-              resultCtFields.push({
-                name: f.name,
-                kind: FVar(Context.typeof(macro ${p}($target.$fname)).toComplex()),
-                meta: optional ? [{name: ':optional', pos: f.pos}] : [],
-                #if haxe4
-                access: f.isFinal ? [AFinal] : [],
-                #end
-                pos: f.pos,
-              });
-              
-              if(optional)
-                setters.push(macro if(Reflect.hasField(target, $v{fname})) result.$fname = ${p}(target.$fname));
-              else
-                setters.push(macro result.$fname = ${p}(target.$fname));
             case {expr: p}:
               p.pos.error('This expression is currently not supported');
           }

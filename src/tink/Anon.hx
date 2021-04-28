@@ -53,18 +53,30 @@ class Anon {
         var pos = Context.currentPos();
         var setters = [];
         var resultCtFields = [];
-        var resultCt = ComplexType.TAnonymous(resultCtFields);
+        var expected = Context.getExpectedType();
+        var expectedFields = switch expected {
+          case null: [];
+          case _.reduce() => TAnonymous(_.get() => {fields: fields}): fields;
+          case _: [];
+        }
+        
+        var resultCt = expected == null ? ComplexType.TAnonymous(resultCtFields) : expected.toComplex();
         
         for(f in targetFields) {
           var fname = f.name;
           var optional = f.meta.has(':optional');
           var nested = f.type.reduce().match(TAnonymous(_));
           
+          var expected = switch expectedFields.find(e -> e.name == fname) {
+            case null: f.pos.makeBlankType();
+            case f: f.type.toComplex();
+          }
+          
           function addSetter(e) {
             if(optional) {
-              setters.push(macro if(Reflect.hasField(target, $v{fname})) result.$fname = $e);
+              setters.push(macro if(Reflect.hasField(target, $v{fname})) (cast result).$fname = $e);
             } else {
-              setters.push(macro result.$fname = $e);
+              setters.push(macro (cast result).$fname = $e);
             }
           }
           
@@ -85,28 +97,30 @@ class Anon {
               addCtField(f.type.toComplex());
               addSetter(macro target.$fname);
               
-            case {expr: p = {expr: EObjectDecl(_), pos: pos}}:
+            case {expr: p = {pos: pos, expr: EObjectDecl(_)}}:
               if(nested) {
-                addCtField(Context.typeof(macro tink.Anon.transform($target.$fname, $p)).toComplex());
-                addSetter(macro tink.Anon.transform(target.$fname, $p));
+                addCtField(Context.typeof(macro @:pos(pos) (tink.Anon.transform($target.$fname, $p):$expected)).toComplex());
+                addSetter(macro @:pos(pos) (tink.Anon.transform(target.$fname, $p):$expected));
               } else {
                 pos.error('Cannot apply object patch to non-nested field. Use a function instead');
               }
               
-            case {expr: p = {expr: EFunction(_)}}:
-              addCtField(Context.typeof(macro ${p}($target.$fname)).toComplex());
-              addSetter(macro ${p}(target.$fname));
+            case {expr: p = {pos: pos, expr: EFunction(_, func = {args: [arg]})}}:
+              if(arg.type == null) arg.type = f.type.toComplex();
+              if(func.ret == null) func.ret = expected;
+              addCtField(Context.typeof(macro @:pos(pos) ${p}($target.$fname)).toComplex());
+              addSetter(macro @:pos(pos) ${p}(target.$fname));
               
             case {expr: p}:
               p.pos.error('This expression is currently not supported');
           }
         }
         
-        macro {
+        macro @:pos(pos) {
           var target = $target;
-          var result:Dynamic = {};
+          var result:$resultCt = cast {};
           $b{setters};
-          (result:$resultCt);
+          result;
         }
       case _:
         target.pos.error('Expected anonymous object');

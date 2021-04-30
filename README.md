@@ -71,6 +71,41 @@ tink.Anon.splat(o, !~/rba/);//negated
 trace(barfoo);//4
 ```
 
+## Transform
+
+The `tink.Anon.transform` macro takes two expressions:
+- the first argument is the "target" object to be transformed, it must be of anon type
+- the second argument is the "transformer" object, it must be an object literal
+
+Each field in the transformer object (if exists) should be a transformation function, to be acted against the same-named field in the target object.
+
+If a target field is an anon object, the corresponding transformer field can also be an object literal in additional to a function. This will allow nested transformations.
+
+Example:
+
+```haxe
+tink.Anon.transform(
+  {a: 1, b: {c: 2}, d: 3},
+  {a: v -> v + 1, b: {c: v -> v * v}
+);
+```
+
+will be transformed into:
+
+```haxe
+var o = {a: 1, b: {c: 2}, d: 3}
+{
+  a: (v -> v + 1)(o.a),
+  b: {
+    c: (v -> v * v)(o.b.c),
+  },
+  d: o.d,
+}
+```
+
+Note that `Reflect.hasField` is used on optional fields, so that non-existent fields will remain non-existent in the result object.
+
+
 ## Macro helpers
 
 At macro time there's an API that helps you use the underlying transformations with more control. Feedback is highly appreciated. Usage is only advised if you have time to deal with breaking changes.

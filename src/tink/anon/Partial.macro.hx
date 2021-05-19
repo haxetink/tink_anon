@@ -13,6 +13,9 @@ class Partial {
           {
             name: ctx.name,
             kind: TDAlias(TAnonymous([for (f in fields) {
+              // #if haxe4
+              // access: f.isFinal ? [AFinal] : [],
+              // #end
               name: f.name,
               meta: [{ name: ':optional', params: [], pos: (macro null).pos }],
               pos: f.pos,

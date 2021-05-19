@@ -8,8 +8,8 @@
 	"contributors": [
 		"back2dos"
 	],
-	"version": "0.6.0",
-	"releasenote": "Add tink.anon.Partial. Generate nicer code. Improve Diagnostics.",
+	"version": "0.7.0",
+	"releasenote": "Add tink.Anon.transform and helper to create interfaces from anons",
 	"tags": [
 		"tink",
 		"anonymous",

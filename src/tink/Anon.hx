@@ -95,7 +95,7 @@ class Anon {
           switch patchFields.find(p -> p.field == fname) {
             case null:
               addCtField(f.type.toComplex());
-              addSetter(macro target.$fname);
+              addSetter(macro @:pos(pos) (target.$fname:$expected));
               
             case {expr: p = {pos: pos, expr: EObjectDecl(_)}}:
               if(nested) {

@@ -1,5 +1,8 @@
 # Tinkerbell Anonymous Object Helpers
 
+[![Build Status](https://github.com/haxetink/tink_anon/actions/workflows/ci.yml/badge.svg)](https://github.com/haxetink/tink_anon/actions)
+[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/haxetink/public)
+
 There's really just two functions for merging and splatting objects. It is advised to use them through `import tink.Anon.*`.
 
 ## Merge

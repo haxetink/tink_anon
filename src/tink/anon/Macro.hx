@@ -225,7 +225,7 @@ class Macro {
                 });
               }
 
-              var value = extract(oExpr, found);
+              var value = extract(oExpr, getField(name));
 
               switch type.get() {
                 case Some(_.toComplex() => t):

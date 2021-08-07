@@ -96,7 +96,8 @@ class Macro {
         function unknownField(name:Part):Outcome<FieldInfo, String>;
         function duplicateField(name:String):String;
         function missingField(field:FieldInfo):String;
-      }
+      },
+      ?extract:(owner:Expr, field:FieldInfo)->Expr
     ) {
 
     pos = pos.sanitize();
@@ -107,6 +108,9 @@ class Macro {
         duplicateField: function (name) return 'duplicate field $name',
         missingField: function (f) return 'missing field ${f.name}',
       }
+
+    if (extract == null)
+      extract = (owner, field) -> owner.field(field.name, owner.pos);
 
     inline function resolve(o)
       return
@@ -189,7 +193,9 @@ class Macro {
     }
 
     for (o in complex) {
+
       var ot = typeof(o);
+
       var given = switch ot.reduce() {
         case t = TInst(_.get() => cl, _):
           classFields(t, include, cl);
@@ -199,7 +205,8 @@ class Macro {
           o.reject('type has no fields (${ot.toString()})');
       }
 
-      var varName = null;
+      var varName = null,
+          oExpr = null;
       for (found in given) {
         var name = resolve(found);
 
@@ -210,6 +217,7 @@ class Macro {
               defined[name] = true;
               if (varName == null) {
                 varName = '__o${vars.length}';
+                oExpr = macro @:pos(o.pos) $i{varName};
                 vars.push({
                   name: varName,
                   type: null,
@@ -217,10 +225,7 @@ class Macro {
                 });
               }
 
-              var value = {
-                var name = found.name;
-                macro @:pos(o.pos) $i{varName}.$name;
-              }
+              var value = extract(oExpr, found);
 
               switch type.get() {
                 case Some(_.toComplex() => t):

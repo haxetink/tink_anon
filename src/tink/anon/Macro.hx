@@ -39,7 +39,7 @@ typedef FieldInfo = {
 class Macro {
 
   static public function buildReadOnly() {
-    return BuildCache.getType('tink.anon.ReadOnly', function(ctx) {
+    return BuildCache.getType('tink.anon.ReadOnly', null, null, function(ctx) {
       var name = ctx.name;
       var ct = ctx.type.toComplex();
       var def = macro class $name {};
